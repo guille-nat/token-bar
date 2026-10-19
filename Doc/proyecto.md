@@ -5,18 +5,32 @@ Mod de Claude Code (feature "mods", probado en 2.1.303) que muestra el consumo d
 
 ## Cómo usarlo
 
+### Instalado en todas las sesiones (modo normal)
+
+El repo es a la vez el plugin y su marketplace (`.claude-plugin/marketplace.json` con `source: "./"`). Se registra la carpeta como marketplace local y se instala a nivel usuario:
+
 ```sh
-claude --plugin-dir ~/workdir/token-bar          # carga solo para esa sesión, con hot-reload
-claude plugin validate ~/workdir/token-bar       # lista hooks: y calls:
-claude plugin test ~/workdir/token-bar           # tests (sin sesión ni red)
+claude plugin marketplace add ~/workdir/token-bar
+claude plugin install token-bar@guille-nat --scope user
 ```
 
-No se instala: solo `--plugin-dir`.
+Queda en `enabledPlugins` de `~/.claude/settings.json` y carga en todos los proyectos. Como el marketplace es una carpeta y el `source` es relativo, Claude lo lee **directo desde `~/workdir/token-bar`** (lo muestra `claude plugin list` en `Read from:`), sin copia: editás, corrés `/reload-plugins` y toma los cambios, sin reinstalar ni subir versión.
+
+Por qué así y no `--plugin-dir` en el shell ni `CLAUDE_CODE_PLUGIN_DIRS`: es el mecanismo oficial de instalación, aparece en `/plugin` como cualquier otro, y el mismo `marketplace.json` sirve para instalarlo desde GitHub en otra máquina (`/plugin install token-bar --marketplace guille-nat/token-bar`). El paso a paso para otras máquinas está en el [README.md](../README.md) de la raíz.
+
+### Desarrollo y chequeos
+
+```sh
+claude --plugin-dir ~/workdir/token-bar          # carga solo para esa sesión, con hot-reload (sin instalar)
+claude plugin validate ~/workdir/token-bar       # valida marketplace + manifiesto, lista hooks: y calls:
+claude plugin test ~/workdir/token-bar           # tests (sin sesión ni red)
+```
 
 ## Estructura
 
 ```
 .claude-plugin/plugin.json   manifiesto
+.claude-plugin/marketplace.json  marketplace local/GitHub (una entrada: este mismo repo)
 .claude-plugin/types/        tipos que escribe el engine al cargar el mod (ignorado por git)
 hooks/hooks.json             apunta al módulo
 hooks/register.tsx           hooks: eventos, comandos, dibujo

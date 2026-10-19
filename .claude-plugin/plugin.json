@@ -1,5 +1,6 @@
 {
   "name": "token-bar",
   "version": "0.1.0",
-  "description": "Barra y panel de consumo de tokens y límites del plan"
+  "description": "Barra y panel de consumo de tokens y límites del plan",
+  "author": { "name": "Guillermo Natali Ulla" }
 }

@@ -1,0 +1,6 @@
+{
+  "name": "guille-nat",
+  "description": "Mods de Claude Code de guille-nat",
+  "owner": { "name": "Guillermo Natali Ulla" },
+  "plugins": [{ "name": "token-bar", "source": "./" }]
+}
