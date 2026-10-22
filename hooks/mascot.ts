@@ -1,5 +1,5 @@
-// Clawd, el bichito de Claude Code, dibujado con medios bloques: 2 filas de 9
-// columnas (cabeza, cuerpo con patas); el efecto (♪, z, !, el destello) va como
+// Clawd, el bichito de Claude Code, dibujado con medios bloques: 3 filas de 9
+// columnas (cabeza, cuerpo, patas); el efecto (♪, z, !, el destello) va como
 // prefijo del comentario. Puro: el cuadro sale del
 // número de tick y del ánimo, así se testea sin reloj.
 
@@ -8,8 +8,8 @@ import { sparkFrame } from './format'
 export type Fx = 'none' | 'notes' | 'sleep' | 'spark' | 'alert'
 
 export type MascotFrame = {
-  /** Las 2 filas (cabeza y cuerpo con patas), cada una de 9 columnas. */
-  rows: readonly [string, string]
+  /** Las 3 filas, cada una de 9 columnas. */
+  rows: readonly [string, string, string]
   fx: Fx
   /** El símbolo que antecede al comentario (♪, z, !, el destello), o ''. */
   mark: string
@@ -27,28 +27,28 @@ export type Mood = {
   maxPct: number
 }
 
+const BLANK = '         '
 const HEAD = ' ▐▛███▜▌ '
-// Las patas son la muesca de abajo del cuerpo: así Clawd cabe en 2 filas.
-const BODY = '▝▜█▙ ▟█▛▘'
-const STEP = '▝▜█▛ ▜█▛▘'
+const BODY = '▝▜█████▛▘'
+const LEGS = '  ▘▘ ▝▝  '
 
-type Pose = { head: string; body: string; fx?: Fx; mark?: string; say?: string }
+type Pose = { head: string; body: string; legs: string; fx?: Fx; mark?: string; say?: string }
 
-const base: Pose = { head: HEAD, body: BODY }
+const base: Pose = { head: HEAD, body: BODY, legs: LEGS }
 
 const POSES = {
   base,
   blink: { ...base, head: ' ▐█████▌ ' },
   lookLeft: { ...base, head: ' ▐▛███▛▌ ' },
   lookRight: { ...base, head: ' ▐▜███▜▌ ' },
-  waveUp: { head: ' ▐▛███▜▌▝', body: '▝▜█▙ ▟█▛ ', say: '¡Hola!' },
-  waveDown: { head: ' ▐▛███▜▌▗', body: '▝▜█▙ ▟█▛ ', say: '¡Hola!' },
-  crouch: { ...base, body: '▗▟█████▙▖' },
-  jump: { head: HEAD, body: '  ▘▘ ▝▝  ', say: '¡hop!' },
-  danceA: { head: '▗▐▛███▜▌ ', body: ' ▜█▙ ▟█▛▘', fx: 'notes', mark: '♪' },
-  danceB: { head: ' ▐▛███▜▌▖', body: '▝▜█▙ ▟█▛ ', fx: 'notes', mark: '♫' },
-  sleepA: { head: ' ▐█████▌ ', body: BODY, fx: 'sleep', say: 'zzz…' },
-  sleepB: { head: ' ▐█████▌ ', body: BODY, fx: 'sleep', say: 'zZz…' },
+  waveUp: { ...base, head: ' ▐▛███▜▌▝', body: '▝▜█████▛ ', say: '¡Hola!' },
+  waveDown: { ...base, head: ' ▐▛███▜▌▗', body: '▝▜█████▛ ', say: '¡Hola!' },
+  crouch: { ...base, body: '▗▟█████▙▖', legs: '  ▀▀ ▀▀  ' },
+  jump: { head: HEAD, body: BODY, legs: BLANK, say: '¡hop!' },
+  danceA: { head: '▗▐▛███▜▌ ', body: ' ▜█████▛▘', legs: '   ▘▘▝▝  ', fx: 'notes', mark: '♪' },
+  danceB: { head: ' ▐▛███▜▌▖', body: '▝▜█████▛ ', legs: '  ▘▘ ▝▝  ', fx: 'notes', mark: '♫' },
+  sleepA: { head: ' ▐█████▌ ', body: BODY, legs: LEGS, fx: 'sleep', say: 'zzz…' },
+  sleepB: { head: ' ▐█████▌ ', body: BODY, legs: LEGS, fx: 'sleep', say: 'zZz…' },
 } satisfies Record<string, Pose>
 
 type PoseName = keyof typeof POSES
@@ -88,9 +88,9 @@ export const mascotFrame = (tick: number, mood: Mood): MascotFrame => {
   if (mood.isWorking) {
     // Teclea: patas alternadas y el destello de Claude girando sobre la cabeza.
     const spark = sparkFrame(tick)
-    const legs = Math.floor(tick / 2) % 2 === 0 ? BODY : STEP
+    const legs = Math.floor(tick / 2) % 2 === 0 ? '  ▘▘ ▝▝  ' : '   ▘▘▝▝  '
     return {
-      rows: [HEAD, legs],
+      rows: [HEAD, BODY, legs],
       fx: 'spark',
       mark: spark,
       say: 'trabajando…',
@@ -102,7 +102,7 @@ export const mascotFrame = (tick: number, mood: Mood): MascotFrame => {
   const pose: Pose = POSES[name]
   if (mood.alert !== null) {
     return {
-      rows: [pose.head, pose.body],
+      rows: [pose.head, pose.body, pose.legs],
       fx: 'alert',
       mark: '',
       say: `¡ojo! ${mood.alert.label} al ${Math.round(mood.alert.pct)}%`,
@@ -110,7 +110,7 @@ export const mascotFrame = (tick: number, mood: Mood): MascotFrame => {
     }
   }
   return {
-    rows: [pose.head, pose.body],
+    rows: [pose.head, pose.body, pose.legs],
     fx: pose.fx ?? 'none',
     mark: pose.mark ?? '',
     say: pose.say ?? remark(mood, name),
