@@ -556,7 +556,7 @@ export const register: Register = on => {
             <Text key="clawd-say" color={FX_COLOR[clawd.fx] ?? CLAUDE_GLOW} italic wrap="truncate-end">{say}</Text>
           </Box>
           <Box key="band-rule" flexDirection="column" flexShrink={0}>
-            {[0, 1, 2].map(i => (
+            {[0, 1].map(i => (
               <Text key={`rule-${i}`} dimColor> │ </Text>
             ))}
           </Box>

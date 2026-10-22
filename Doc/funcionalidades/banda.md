@@ -21,7 +21,7 @@ A la izquierda de los medidores, en 4 filas de medios bloques (`hooks/mascot.ts`
 
 Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 columnas. El reloj redibuja solo cuando cambia la pose (`key` del cuadro), no en cada tick.
 
-**Layout:** 3 filas. A la izquierda Clawd (3 filas) con, a su lado, el modelo y su comentario (`╰ trabajando…`, `╰ ¡Hola!`): van juntos para que se entienda que lo hace Claude. Esa columna tiene ancho fijo (`SAY_WIDTH`) y su fila de comentario siempre está reservada. Después, una raya vertical `│` y los datos fijos: medidores, y debajo tokens + repo + `panel`. Como el comentario no comparte fila con los datos, estos no se mueven cuando Clawd habla. El efecto (♪, destello, `¡ojo!`) va como prefijo del comentario; Clawd ya no tiene fila de efectos, de ahí que sea 3 filas en vez de 4.
+**Layout:** 3 filas. A la izquierda Clawd (3 filas) con, a su lado, el modelo y su comentario (`╰ trabajando…`, `╰ ¡Hola!`): van juntos para que se entienda que lo hace Claude. Esa columna tiene ancho fijo (`SAY_WIDTH`) y su fila de comentario siempre está reservada. Después, una raya vertical `│` (de 2 filas, las que tienen contenido) y los datos fijos: medidores, y debajo tokens + repo + `panel`. Como el comentario no comparte fila con los datos, estos no se mueven cuando Clawd habla. El efecto (♪, destello, `¡ojo!`) va como prefijo del comentario; Clawd ya no tiene fila de efectos, de ahí que sea 3 filas en vez de 4.
 
 ## Cómo funciona
 - `ui.render` `AbovePrompt` en `hooks/register.tsx`; los helpers puros (`lineBar`, `sparkFrame`, `shimmerIndex`, `easeToward`) en `hooks/format.ts`.
