@@ -21,7 +21,7 @@ A la izquierda de los medidores, en 4 filas de medios bloques (`hooks/mascot.ts`
 
 Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 columnas. El reloj redibuja solo cuando cambia la pose (`key` del cuadro), no en cada tick.
 
-**Layout fijo:** a la derecha de Clawd van 3 filas alineadas con su cabeza, cuerpo y patas: medidores, tokens + repo + `panel`, y los comentarios. La fila de comentarios está siempre reservada (en blanco si no dice nada), así lo que habla Clawd no mueve los números. Antes el comentario iba al principio de la fila de tokens y los empujaba.
+**Layout:** 3 filas. A la izquierda Clawd (3 filas) con, a su lado, el modelo y su comentario (`╰ trabajando…`, `╰ ¡Hola!`): van juntos para que se entienda que lo hace Claude. Esa columna tiene ancho fijo (`SAY_WIDTH`) y su fila de comentario siempre está reservada. Después, una raya vertical `│` y los datos fijos: medidores, y debajo tokens + repo + `panel`. Como el comentario no comparte fila con los datos, estos no se mueven cuando Clawd habla. El efecto (♪, destello, `¡ojo!`) va como prefijo del comentario; Clawd ya no tiene fila de efectos, de ahí que sea 3 filas en vez de 4.
 
 ## Cómo funciona
 - `ui.render` `AbovePrompt` en `hooks/register.tsx`; los helpers puros (`lineBar`, `sparkFrame`, `shimmerIndex`, `easeToward`) en `hooks/format.ts`.
@@ -42,6 +42,7 @@ Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 colum
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-22: Clawd de 3 filas; comentario junto a Clawd y datos separados por una raya.
 - 2026-10-22: los comentarios de Clawd pasan a una fila propia para que la info no se mueva.
 - 2026-10-22: Clawd animado en bucle, con frases según el estado.
 - 2026-10-22: banda rediseñada con animaciones y pasa a ser la vista por defecto.

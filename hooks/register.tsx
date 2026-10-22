@@ -84,7 +84,9 @@ const FRAME_MS = 100
 const SETTINGS_VERSION = 2
 const DEFAULTS: Settings = { statusOn: false, bandOn: true, density: 'auto', repoOn: true, dotsOn: true, mascotOn: true }
 /** Por debajo de este ancho de banda, Clawd no entra junto a los medidores. */
-const MASCOT_MIN_COLUMNS = 60
+const MASCOT_MIN_COLUMNS = 72
+/** Ancho de la columna donde Clawd dice su comentario (y debajo del modelo). */
+const SAY_WIDTH = 28
 const MASCOT_COLUMNS = 9
 
 let usage: Usage | null = null
@@ -445,21 +447,17 @@ export const register: Register = on => {
     const others = await next(e)
     const now = await $.clock.now()
     const showMascot = settings.mascotOn && e.props.bodyColumns >= MASCOT_MIN_COLUMNS
-    // Clawd ocupa 9 columnas más 2 de aire: los medidores se miden con lo que queda.
-    const room = e.props.bodyColumns - (showMascot ? MASCOT_COLUMNS + 2 : 0)
+    // A la izquierda Clawd y su comentario (ancho fijo); luego una raya; el resto
+    // es de los datos, que se miden con lo que sobra.
+    const room = e.props.bodyColumns - (showMascot ? MASCOT_COLUMNS + 2 + SAY_WIDTH + 3 : 0)
     const limits = sortLimits(usage?.rateLimits ?? [])
     const withSeps = (prefix: string, nodes: RenderChildren[]) =>
       nodes.flatMap((node, i) => (i === 0 ? [node] : [<Text key={`${prefix}-sep-${i}`} dimColor> │ </Text>, node]))
 
-    // Fila de arriba: modelo y medidores, con el detalle que entre en `room`.
-    const gaugesRow = (level: Level) => {
-      const isCompact = level === 'compacta'
-      const barWidth = level === 'completa' ? 10 : level === 'media' ? 6 : 0
-
-      // El modelo con un brillo que lo recorre mientras Claude trabaja.
-      const modelText = isCompact ? shortModel(formatModel(model)) : formatModel(model)
+    // El modelo con un brillo que lo recorre mientras Claude trabaja.
+    const brandOf = (modelText: string): RenderChildren => {
       const glow = isWorking ? shimmerIndex(frame, modelText.length) : modelText.length
-      const brand = (
+      return (
         <Box key="brand" flexDirection="row">
           <Text color={CLAUDE_ORANGE} bold>{isWorking ? sparkFrame(frame) : SPARK_IDLE} </Text>
           <Text color={CLAUDE_ORANGE} bold>{modelText.slice(0, glow)}</Text>
@@ -467,6 +465,13 @@ export const register: Register = on => {
           <Text color={CLAUDE_ORANGE} bold>{modelText.slice(glow + 1)}</Text>
         </Box>
       )
+    }
+
+    // Fila de medidores, con el detalle que entre en `room`. Sin Clawd, el
+    // modelo abre la fila; con Clawd, va a su lado.
+    const gaugesRow = (level: Level) => {
+      const isCompact = level === 'compacta'
+      const barWidth = level === 'completa' ? 10 : level === 'media' ? 6 : 0
 
       const gauge = (key: string, kind: string, labelColor: string, pct: number | undefined, resetsAt?: string): [number, RenderChildren] => {
         const label = key === 'ctx' ? 'ctx' : isCompact ? shortLabelFor(kind) : labelFor(kind)
@@ -486,8 +491,9 @@ export const register: Register = on => {
         ]
       }
 
+      const modelText = isCompact ? shortModel(formatModel(model)) : formatModel(model)
       const items: [number, RenderChildren][] = [
-        [2 + modelText.length, brand],
+        ...(showMascot ? [] : ([[2 + modelText.length, brandOf(modelText)]] as [number, RenderChildren][])),
         ...(limits.length === 0
           ? ['five_hour', 'seven_day'].map(kind => gauge(kind, kind, kindColor(kind), undefined))
           : limits.map(l => gauge(l.kind, l.kind, kindColor(l.kind), l.percentUsed, l.resetsAt))),
@@ -507,8 +513,6 @@ export const register: Register = on => {
     const rows = levels.map(gaugesRow)
     const top = rows.find(r => r.length <= room) ?? rows[rows.length - 1]!
 
-    // Fila de abajo: lo que dice Clawd, tokens, repo y el botón del panel.
-    const clawd = showMascot ? mascotFrame(frame, mood()) : null
     const t = addTokens(counters.main, counters.agents)
     const repoText = settings.repoOn ? repoSummary(repo, top.level === 'compacta') : ''
     const details = [
@@ -516,24 +520,16 @@ export const register: Register = on => {
       ...(repoText === '' ? [] : [<Text key="band-repo" color="suggestion">{repoText}</Text>]),
       <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />,
     ]
-    // Los comentarios de Clawd tienen su fila: reservada aunque no diga nada, así
-    // los medidores, los tokens y el repo no se mueven cuando habla.
-    const say = clawd?.say ?? null
     const info = (
-      <Box flexDirection="column" flexShrink={1}>
+      <Box key="band-info" flexDirection="column" flexShrink={1}>
         {top.node}
         <Box key="band-details" flexDirection="row">
           {withSeps('details', details)}
         </Box>
-        {clawd !== null && (
-          <Text key="clawd-say" color={clawd.fx === 'alert' ? 'error' : CLAUDE_GLOW} italic wrap="truncate-end">
-            {say === null ? ' ' : `╰ ${say}`}
-          </Text>
-        )}
       </Box>
     )
 
-    if (clawd === null) {
+    if (!showMascot) {
       return (
         <Box flexDirection="column">
           {info}
@@ -542,18 +538,29 @@ export const register: Register = on => {
       )
     }
 
+    // Clawd y su comentario van juntos: así se entiende que lo hace Claude. El
+    // comentario tiene su fila reservada y un ancho fijo, y la raya lo separa de
+    // los datos, que por eso no se mueven cuando Clawd habla.
+    const clawd = mascotFrame(frame, mood())
+    const say = clawd.say === null ? ' ' : `╰ ${clawd.mark === '' ? '' : `${clawd.mark} `}${clawd.say}`
     return (
       <Box flexDirection="column">
-        <Box flexDirection="row" columnGap={2}>
+        <Box flexDirection="row">
           <Box key="clawd" flexDirection="column" flexShrink={0}>
-            <Text key="clawd-fx" color={FX_COLOR[clawd.fx]} bold>{clawd.rows[0]}</Text>
-            {clawd.rows.slice(1).map((row, i) => (
+            {clawd.rows.map((row, i) => (
               <Text key={`clawd-${i}`} color={CLAUDE_ORANGE}>{row}</Text>
             ))}
           </Box>
-          <Box key="band-info" flexDirection="column" flexShrink={1} marginTop={1}>
-            {info}
+          <Box key="clawd-text" flexDirection="column" flexShrink={0} width={SAY_WIDTH} marginLeft={2}>
+            {brandOf(formatModel(model))}
+            <Text key="clawd-say" color={FX_COLOR[clawd.fx] ?? CLAUDE_GLOW} italic wrap="truncate-end">{say}</Text>
           </Box>
+          <Box key="band-rule" flexDirection="column" flexShrink={0}>
+            {[0, 1, 2].map(i => (
+              <Text key={`rule-${i}`} dimColor> │ </Text>
+            ))}
+          </Box>
+          {info}
         </Box>
         {others}
       </Box>

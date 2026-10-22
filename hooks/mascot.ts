@@ -1,5 +1,6 @@
-// Clawd, el bichito de Claude Code, dibujado con medios bloques: 4 filas de 9
-// columnas (efecto arriba, cabeza, cuerpo, patas). Puro: el cuadro sale del
+// Clawd, el bichito de Claude Code, dibujado con medios bloques: 3 filas de 9
+// columnas (cabeza, cuerpo, patas); el efecto (♪, z, !, el destello) va como
+// prefijo del comentario. Puro: el cuadro sale del
 // número de tick y del ánimo, así se testea sin reloj.
 
 import { sparkFrame } from './format'
@@ -7,9 +8,11 @@ import { sparkFrame } from './format'
 export type Fx = 'none' | 'notes' | 'sleep' | 'spark' | 'alert'
 
 export type MascotFrame = {
-  /** Las 4 filas, cada una de 9 columnas. */
-  rows: readonly [string, string, string, string]
+  /** Las 3 filas, cada una de 9 columnas. */
+  rows: readonly [string, string, string]
   fx: Fx
+  /** El símbolo que antecede al comentario (♪, z, !, el destello), o ''. */
+  mark: string
   /** Lo que dice al lado, o null. */
   say: string | null
   /** Cambia solo cuando cambia el dibujo: el reloj redibuja si cambia. */
@@ -29,9 +32,9 @@ const HEAD = ' ▐▛███▜▌ '
 const BODY = '▝▜█████▛▘'
 const LEGS = '  ▘▘ ▝▝  '
 
-type Pose = { top: string; head: string; body: string; legs: string; fx?: Fx; say?: string }
+type Pose = { head: string; body: string; legs: string; fx?: Fx; mark?: string; say?: string }
 
-const base: Pose = { top: BLANK, head: HEAD, body: BODY, legs: LEGS }
+const base: Pose = { head: HEAD, body: BODY, legs: LEGS }
 
 const POSES = {
   base,
@@ -41,11 +44,11 @@ const POSES = {
   waveUp: { ...base, head: ' ▐▛███▜▌▝', body: '▝▜█████▛ ', say: '¡Hola!' },
   waveDown: { ...base, head: ' ▐▛███▜▌▗', body: '▝▜█████▛ ', say: '¡Hola!' },
   crouch: { ...base, body: '▗▟█████▙▖', legs: '  ▀▀ ▀▀  ' },
-  jump: { top: HEAD, head: BODY, body: LEGS, legs: BLANK, say: '¡hop!' },
-  danceA: { top: '  ♪      ', head: '▗▐▛███▜▌ ', body: ' ▜█████▛▘', legs: '   ▘▘▝▝  ', fx: 'notes' },
-  danceB: { top: '      ♫  ', head: ' ▐▛███▜▌▖', body: '▝▜█████▛ ', legs: '  ▘▘ ▝▝  ', fx: 'notes' },
-  sleepA: { top: '      z  ', head: ' ▐█████▌ ', body: BODY, legs: LEGS, fx: 'sleep', say: 'zzz…' },
-  sleepB: { top: '     zZ  ', head: ' ▐█████▌ ', body: BODY, legs: LEGS, fx: 'sleep', say: 'zzz…' },
+  jump: { head: HEAD, body: BODY, legs: BLANK, say: '¡hop!' },
+  danceA: { head: '▗▐▛███▜▌ ', body: ' ▜█████▛▘', legs: '   ▘▘▝▝  ', fx: 'notes', mark: '♪' },
+  danceB: { head: ' ▐▛███▜▌▖', body: '▝▜█████▛ ', legs: '  ▘▘ ▝▝  ', fx: 'notes', mark: '♫' },
+  sleepA: { head: ' ▐█████▌ ', body: BODY, legs: LEGS, fx: 'sleep', say: 'zzz…' },
+  sleepB: { head: ' ▐█████▌ ', body: BODY, legs: LEGS, fx: 'sleep', say: 'zZz…' },
 } satisfies Record<string, Pose>
 
 type PoseName = keyof typeof POSES
@@ -76,8 +79,8 @@ export const loopPose = (tick: number): PoseName => {
 
 /** Lo que dice según cómo vienen los límites, cuando la pose no dice nada. */
 const remark = (mood: Mood, pose: PoseName): string | null => {
-  if (pose.startsWith('dance')) return mood.maxPct < 50 ? 'todo tranqui ♪' : '♪'
   if (mood.maxPct >= 75) return 'conviene dosificar'
+  if (pose.startsWith('dance') && mood.maxPct < 50) return 'todo tranqui'
   return null
 }
 
@@ -87,8 +90,9 @@ export const mascotFrame = (tick: number, mood: Mood): MascotFrame => {
     const spark = sparkFrame(tick)
     const legs = Math.floor(tick / 2) % 2 === 0 ? '  ▘▘ ▝▝  ' : '   ▘▘▝▝  '
     return {
-      rows: [`    ${spark}    `, HEAD, BODY, legs],
+      rows: [HEAD, BODY, legs],
       fx: 'spark',
+      mark: spark,
       say: 'trabajando…',
       key: `work-${spark}-${legs}`,
     }
@@ -98,15 +102,17 @@ export const mascotFrame = (tick: number, mood: Mood): MascotFrame => {
   const pose: Pose = POSES[name]
   if (mood.alert !== null) {
     return {
-      rows: ['    !    ', pose.head, pose.body, pose.legs],
+      rows: [pose.head, pose.body, pose.legs],
       fx: 'alert',
+      mark: '',
       say: `¡ojo! ${mood.alert.label} al ${Math.round(mood.alert.pct)}%`,
       key: `alert-${name}`,
     }
   }
   return {
-    rows: [pose.top, pose.head, pose.body, pose.legs],
+    rows: [pose.head, pose.body, pose.legs],
     fx: pose.fx ?? 'none',
+    mark: pose.mark ?? '',
     say: pose.say ?? remark(mood, name),
     key: name,
   }

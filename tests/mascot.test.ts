@@ -5,11 +5,11 @@ import { LOOP_TICKS, loopPose, mascotFrame } from '../hooks/mascot'
 const CALM = { isWorking: false, alert: null, maxPct: 20 }
 
 describe('Clawd', () => {
-  test('todas las poses miden 4 filas de 9 columnas', () => {
+  test('todas las poses miden 3 filas de 9 columnas', () => {
     for (let t = 0; t < LOOP_TICKS; t++) {
       for (const mood of [CALM, { ...CALM, isWorking: true }, { ...CALM, alert: { label: 'Semana', pct: 93 } }]) {
         const f = mascotFrame(t, mood)
-        expect(f.rows.length).toBe(4)
+        expect(f.rows.length).toBe(3)
         for (const row of f.rows) expect([...row].length).toBe(9)
       }
     }
@@ -26,7 +26,7 @@ describe('Clawd', () => {
     const a = mascotFrame(0, { ...CALM, isWorking: true })
     const b = mascotFrame(1, { ...CALM, isWorking: true })
     expect(a.say).toBe('trabajando…')
-    expect(a.rows[0]).not.toBe(b.rows[0])
+    expect(a.mark).not.toBe(b.mark)
     expect(mascotFrame(50, { ...CALM, alert: { label: 'Semana', pct: 92.6 } }).say).toBe('¡ojo! Semana al 93%')
   })
 })
