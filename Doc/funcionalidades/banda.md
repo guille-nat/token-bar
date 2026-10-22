@@ -21,6 +21,8 @@ A la izquierda de los medidores, en 4 filas de medios bloques (`hooks/mascot.ts`
 
 Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 columnas. El reloj redibuja solo cuando cambia la pose (`key` del cuadro), no en cada tick.
 
+**Layout fijo:** a la derecha de Clawd van 3 filas alineadas con su cabeza, cuerpo y patas: medidores, tokens + repo + `panel`, y los comentarios. La fila de comentarios está siempre reservada (en blanco si no dice nada), así lo que habla Clawd no mueve los números. Antes el comentario iba al principio de la fila de tokens y los empujaba.
+
 ## Cómo funciona
 - `ui.render` `AbovePrompt` en `hooks/register.tsx`; los helpers puros (`lineBar`, `sparkFrame`, `shimmerIndex`, `easeToward`) en `hooks/format.ts`.
 - Un reloj de 100 ms (`tick`) avanza el cuadro, acerca cada barra a su valor (`shown`) y llama a `$.ui.invalidate('ui.render')` **solo** si algo se mueve: un turno en curso, una barra llenándose o un medidor ≥90 % (cada 5 cuadros). En reposo no redibuja nada.
@@ -40,5 +42,6 @@ Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 colum
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-22: los comentarios de Clawd pasan a una fila propia para que la info no se mueva.
 - 2026-10-22: Clawd animado en bucle, con frases según el estado.
 - 2026-10-22: banda rediseñada con animaciones y pasa a ser la vista por defecto.

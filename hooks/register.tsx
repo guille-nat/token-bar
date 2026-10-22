@@ -512,23 +512,24 @@ export const register: Register = on => {
     const t = addTokens(counters.main, counters.agents)
     const repoText = settings.repoOn ? repoSummary(repo, top.level === 'compacta') : ''
     const details = [
-      ...(clawd?.say == null
-        ? []
-        : [
-            <Text key="clawd-say" color={clawd.fx === 'alert' ? 'error' : CLAUDE_GLOW} italic>
-              ╰ {clawd.say}
-            </Text>,
-          ]),
       <Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>,
       ...(repoText === '' ? [] : [<Text key="band-repo" color="suggestion">{repoText}</Text>]),
       <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />,
     ]
+    // Los comentarios de Clawd tienen su fila: reservada aunque no diga nada, así
+    // los medidores, los tokens y el repo no se mueven cuando habla.
+    const say = clawd?.say ?? null
     const info = (
-      <Box flexDirection="column" flexShrink={1} justifyContent="center">
+      <Box flexDirection="column" flexShrink={1}>
         {top.node}
         <Box key="band-details" flexDirection="row">
           {withSeps('details', details)}
         </Box>
+        {clawd !== null && (
+          <Text key="clawd-say" color={clawd.fx === 'alert' ? 'error' : CLAUDE_GLOW} italic wrap="truncate-end">
+            {say === null ? ' ' : `╰ ${say}`}
+          </Text>
+        )}
       </Box>
     )
 
@@ -550,7 +551,9 @@ export const register: Register = on => {
               <Text key={`clawd-${i}`} color={CLAUDE_ORANGE}>{row}</Text>
             ))}
           </Box>
-          {info}
+          <Box key="band-info" flexDirection="column" flexShrink={1} marginTop={1}>
+            {info}
+          </Box>
         </Box>
         {others}
       </Box>
