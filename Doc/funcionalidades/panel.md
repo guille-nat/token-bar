@@ -6,7 +6,7 @@
 
 ## Cómo funciona
 - `command.run` → `$.ui.open({ id: 'token-bar', focus: true, closeOnEscape: true })`; el `ui.render` del `Pane` dibuja la pestaña activa (`tab`, variable del módulo).
-- Botones, todos `plain` con `hotkey`: `1`–`5` pestañas, `u` refrescar (uso, modelo y repo forzado), y en Ajustes `b` barra inferior, `a` banda, `d` densidad (auto → compacta → media → completa), `p` puntos de color en la barra, `g` datos del repo, `r` reiniciar contadores.
+- Botones, todos `plain` con `hotkey`: `1`–`5` pestañas, `u` refrescar (uso, modelo y repo forzado), y en Ajustes `b` barra inferior, `a` banda, `d` densidad (auto → compacta → media → completa), `p` puntos de color en la barra, `m` Clawd en la banda, `g` datos del repo, `r` reiniciar contadores.
 - Los ajustes (`statusOn`, `bandOn`, `density`, `dotsOn`, `repoOn`) se guardan en `$.store` bajo `settings`; los que faltan toman el valor por defecto (los dos nuevos, activados).
 - Colores (`hooks/format.ts`):
   - Nivel de uso, `USAGE_LEVELS`: 🟢 <50% holgado (`success`), 🟡 50–74% a mitad (`warning`), 🟠 75–89% atención (`claude`), 🔴 ≥90% al límite (`error`).

@@ -72,7 +72,7 @@ claude plugin marketplace remove guille-nat
 
 | Qué | Cómo |
 | --- | --- |
-| Banda sobre el prompt | Visible por defecto: modelo con el destello de Claude, límites, contexto y repo con barras animadas. `t` (con la banda enfocada) abre el panel. |
+| Banda sobre el prompt | Visible por defecto: Clawd animado (saluda, baila, duerme, avisa al límite), modelo con el destello de Claude, límites, contexto y repo con barras animadas. `t` (con la banda enfocada) abre el panel. |
 | Panel interactivo | `/token-bar` (pestañas Plan, Repo, Leyenda y Ajustes). |
 | Línea de texto bajo el prompt | Opcional, se activa con `b` en Ajustes del panel. |
 | Depuración | `/token-bar-debug` muestra los datos crudos que devuelve el engine. |

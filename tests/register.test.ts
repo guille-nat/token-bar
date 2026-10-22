@@ -267,6 +267,37 @@ test('animaciones: el destello gira mientras trabaja y las barras se llenan', as
   expect(sparkB).not.toEqual(sparkA)
 })
 
+test('Clawd saluda en la banda, cambia de pose y se apaga en Ajustes', async ($, on) => {
+  const { clock, saved } = stubEngine(on, WITHOUT_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  const hello = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await hello.find({ key: 'clawd' })).toBeDefined()
+  expect(await hello.find({ type: 'Text', text: /¡Hola!/ })).toBeDefined()
+  await hello.unmount()
+
+  await clock.advance(5_000)
+  const later = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await later.find({ type: 'Text', text: /¡Hola!/ })).toBeUndefined()
+  await later.unmount()
+
+  const calm = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await calm.find({ type: 'Text', text: /conviene dosificar|Hola|♪|zzz|hop/ })).toBeDefined()
+  await calm.unmount()
+
+  const narrow = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, bodyColumns: 50 } })
+  expect(await narrow.find({ key: 'clawd' })).toBeUndefined()
+  await narrow.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'tab-settings' })
+  await pane.press({ key: 'toggle-mascot' })
+  expect((saved.get('settings') as { mascotOn: boolean }).mascotOn).toBe(false)
+  const off = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await off.find({ key: 'clawd' })).toBeUndefined()
+  expect(await off.find({ type: 'Text', text: /Sesión/ })).toBeDefined()
+})
+
 test('ajustes: apagar la barra la limpia con undefined y la densidad cicla', async ($, on) => {
   const { statuses, saved } = stubEngine(on, WITH_FABLE)
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -449,4 +480,11 @@ test('el modelo va en la barra y en el panel; la leyenda explica colores y símb
   for (const text of [/🟢 <50%/, /🟡 50–74%/, /🟠 75–89%/, /🔴 ≥90%/, /ventana de 5 h/, /commits sin pushear/, /PR de GitHub/]) {
     expect(await pane.find({ type: 'Text', text })).toBeDefined()
   }
+})
+
+test('con un límite ≥90 % Clawd avisa cuál', async ($, on) => {
+  stubEngine(on, WITH_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /¡ojo! Fable semanal al 92%/ })).toBeDefined()
 })

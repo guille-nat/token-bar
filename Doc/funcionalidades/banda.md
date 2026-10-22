@@ -13,6 +13,14 @@ Una fila con colores reales sobre el prompt:
 - **Interactiva:** `panel` (tecla `t` con la banda enfocada, o un clic) abre `/token-bar`. La banda se enfoca con un clic o ctrl+x tab.
 - La densidad (`auto`, compacta, media, completa) sale del ancho de la banda (`levelFor`), igual que antes.
 
+### Clawd, el bichito de Claude Code
+A la izquierda de los medidores, en 4 filas de medios bloques (`hooks/mascot.ts`), en bucle (~17 s por vuelta): saluda ("¡Hola!"), parpadea, mira a los costados, salta ("¡hop!"), baila con ♪ ♫ y se echa una siesta (zzz…). Al lado dice algo según el estado:
+- **turno corriendo:** teclea con el destello de Claude girando sobre la cabeza ("trabajando…");
+- **un medidor ≥90 %:** un `!` rojo y "¡ojo! Semana al 93%";
+- **el más alto ≥75 %:** "conviene dosificar".
+
+Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 columnas. El reloj redibuja solo cuando cambia la pose (`key` del cuadro), no en cada tick.
+
 ## Cómo funciona
 - `ui.render` `AbovePrompt` en `hooks/register.tsx`; los helpers puros (`lineBar`, `sparkFrame`, `shimmerIndex`, `easeToward`) en `hooks/format.ts`.
 - Un reloj de 100 ms (`tick`) avanza el cuadro, acerca cada barra a su valor (`shown`) y llama a `$.ui.invalidate('ui.render')` **solo** si algo se mueve: un turno en curso, una barra llenándose o un medidor ≥90 % (cada 5 cuadros). En reposo no redibuja nada.
@@ -32,4 +40,5 @@ Una fila con colores reales sobre el prompt:
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-22: Clawd animado en bucle, con frases según el estado.
 - 2026-10-22: banda rediseñada con animaciones y pasa a ser la vista por defecto.

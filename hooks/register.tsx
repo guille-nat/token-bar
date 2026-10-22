@@ -34,6 +34,7 @@ import {
   type Usage,
   USAGE_LEVELS,
 } from './format'
+import { type Fx, mascotFrame, type Mood } from './mascot'
 import {
   type ChangeState,
   changeLabel,
@@ -67,7 +68,7 @@ import {
 // a $.store.
 
 type Tab = 'limits' | 'tokens' | 'settings' | 'repo' | 'legend'
-type Settings = { statusOn: boolean; bandOn: boolean; density: Density; repoOn: boolean; dotsOn: boolean }
+type Settings = { statusOn: boolean; bandOn: boolean; density: Density; repoOn: boolean; dotsOn: boolean; mascotOn: boolean }
 
 const PANE = 'token-bar'
 const REFRESH_MS = 30_000
@@ -80,7 +81,9 @@ const FRAME_MS = 100
  * línea de texto se apaga, porque el engine la dibuja toda en amarillo con "⚠".
  */
 const SETTINGS_VERSION = 2
-const DEFAULTS: Settings = { statusOn: false, bandOn: true, density: 'auto', repoOn: true, dotsOn: true }
+const DEFAULTS: Settings = { statusOn: false, bandOn: true, density: 'auto', repoOn: true, dotsOn: true, mascotOn: true }
+/** Por debajo de este ancho de banda, Clawd no entra junto a los medidores. */
+const MASCOT_MIN_COLUMNS = 60
 
 let usage: Usage | null = null
 let model: string | null = null
@@ -94,6 +97,7 @@ let repo: RepoInfo | null = null
 let repoJob: Promise<void> | null = null
 let frame = 0
 let isWorking = false
+let mascotKey = ''
 /** Lo que muestra cada barra mientras se acerca a su valor (clave: kind o "ctx"). */
 const shown = new Map<string, number>()
 const columns: { status: number | null; band: number | null; pane: number | null; command: number | null } = {
@@ -118,6 +122,7 @@ const readSettings = (raw: unknown): Settings => {
       : DEFAULTS.density,
     repoOn: bool(s.repoOn, DEFAULTS.repoOn),
     dotsOn: bool(s.dotsOn, DEFAULTS.dotsOn),
+    mascotOn: bool(s.mascotOn, DEFAULTS.mascotOn),
   }
 }
 
@@ -152,7 +157,27 @@ const tick = ($: EngineInterface) => {
     }
   }
   const isAlert = targets().some(([, pct]) => pct >= 90)
-  if (isMoving || isWorking || (isAlert && frame % 5 === 0)) $.ui.invalidate('ui.render')
+  // Clawd cambia de pose cada tantos ticks: se redibuja solo cuando cambia.
+  const nextMascot = settings.bandOn && settings.mascotOn ? mascotFrame(frame, mood()).key : ''
+  const isMascotMoving = nextMascot !== mascotKey
+  mascotKey = nextMascot
+  if (isMoving || isWorking || isMascotMoving || (isAlert && frame % 5 === 0)) $.ui.invalidate('ui.render')
+}
+
+/** Cómo está Clawd: trabajando, al límite (el medidor más alto ≥90 %) o tranquilo. */
+const mood = (): Mood => {
+  const limits = (usage?.rateLimits ?? []).map(l => ({ label: labelFor(l.kind), pct: l.percentUsed }))
+  if (usage?.context.percent !== undefined) limits.push({ label: 'el contexto', pct: usage.context.percent })
+  const top = limits.reduce<{ label: string; pct: number } | null>((a, b) => (a === null || b.pct > a.pct ? b : a), null)
+  return { isWorking, alert: top !== null && top.pct >= 90 ? top : null, maxPct: top?.pct ?? 0 }
+}
+
+const FX_COLOR: Record<Fx, string | undefined> = {
+  none: undefined,
+  notes: CLAUDE_GLOW,
+  sleep: 'subtle',
+  spark: CLAUDE_ORANGE,
+  alert: 'error',
 }
 
 const saveCounters = async ($: EngineInterface) =>
@@ -469,15 +494,44 @@ export const register: Register = on => {
           ]),
     ]
 
+    const stats = (
+      <Box flexDirection="row" flexWrap="wrap">
+        {segments.flatMap((segment, i) => (i === 0 ? [segment] : [<Text key={`sep-${i}`} dimColor> │ </Text>, segment]))}
+        {!isCompact && (
+          <Box key="band-actions" flexDirection="row" marginLeft={2}>
+            <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />
+          </Box>
+        )}
+      </Box>
+    )
+
+    if (!settings.mascotOn || e.props.bodyColumns < MASCOT_MIN_COLUMNS) {
+      return (
+        <Box flexDirection="column">
+          {stats}
+          {others}
+        </Box>
+      )
+    }
+
+    const clawd = mascotFrame(frame, mood())
     return (
       <Box flexDirection="column">
-        <Box flexDirection="row" flexWrap="wrap">
-          {segments.flatMap((segment, i) => (i === 0 ? [segment] : [<Text key={`sep-${i}`} dimColor> │ </Text>, segment]))}
-          {!isCompact && (
-            <Box key="band-actions" flexDirection="row" marginLeft={2}>
-              <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />
-            </Box>
-          )}
+        <Box flexDirection="row" columnGap={2}>
+          <Box key="clawd" flexDirection="column" flexShrink={0}>
+            <Text key="clawd-fx" color={FX_COLOR[clawd.fx]} bold>{clawd.rows[0]}</Text>
+            {clawd.rows.slice(1).map((row, i) => (
+              <Text key={`clawd-${i}`} color={CLAUDE_ORANGE}>{row}</Text>
+            ))}
+          </Box>
+          <Box flexDirection="column" flexShrink={1} justifyContent="center">
+            {stats}
+            {clawd.say !== null && (
+              <Text key="clawd-say" color={clawd.fx === 'alert' ? 'error' : CLAUDE_GLOW} italic>
+                ╰ {clawd.say}
+              </Text>
+            )}
+          </Box>
         </Box>
         {others}
       </Box>
@@ -722,6 +776,7 @@ export const register: Register = on => {
           label={`Densidad: ${settings.density} (barra: ${statusLevel})`}
           onPress={changeSettings({ density: nextDensity(settings.density) })}
         />
+        <Button key="toggle-mascot" plain hotkey="m" label={`Clawd en la banda: ${onOff(settings.mascotOn)}`} onPress={changeSettings({ mascotOn: !settings.mascotOn })} />
         <Button key="toggle-dots" plain hotkey="p" label={`Puntos de color en la barra: ${onOff(settings.dotsOn)}`} onPress={changeSettings({ dotsOn: !settings.dotsOn })} />
         <Button
           key="toggle-repo"
