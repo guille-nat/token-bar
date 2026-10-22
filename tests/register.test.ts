@@ -237,6 +237,8 @@ test('ajustes de antes de v2: pasa a la banda y apaga la línea de texto', async
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
 
   expect(statuses.filter(s => s !== undefined)).toEqual([])
+  // Manda el undefined igual: borra la línea que dejó el módulo anterior al recargar.
+  expect(statuses.length).toBeGreaterThan(0)
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   // La densidad guardada se respeta: compacta usa las etiquetas cortas.
   expect(await band.find({ type: 'Text', text: /^S $/ })).toBeDefined()
@@ -249,11 +251,11 @@ test('animaciones: el destello gira mientras trabaja y las barras se llenan', as
   const idle = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await idle.find({ type: 'Text', text: '✻ ' })).toBeDefined()
   // La barra arranca vacía y, unos cuadros después, llega a su valor.
-  expect(await idle.find({ type: 'Text', text: /^─{10}$/ })).toBeDefined()
+  expect(await idle.find({ type: 'Text', text: /^─+$/ })).toBeDefined()
   await idle.unmount()
   await clock.advance(3_000)
   const filled = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await filled.find({ type: 'Text', text: /^━━╸$/ })).toBeDefined()
+  expect(await filled.find({ type: 'Text', text: /^━+╸?$/ })).toBeDefined()
   await filled.unmount()
 
   const working = { ...BAND, surface: 'terminal', props: { ...BAND.props, isWorking: true } } as const

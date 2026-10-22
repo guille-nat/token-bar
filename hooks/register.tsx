@@ -1,4 +1,4 @@
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import {
   addTokens,
@@ -7,6 +7,7 @@ import {
   CONTEXT_COLOR,
   type Counters,
   type Density,
+  type Level,
   easeToward,
   emptyCounters,
   fitStatusLine,
@@ -19,11 +20,11 @@ import {
   hasFable,
   kindColor,
   labelFor,
-  levelFor,
   lineBar,
   nextDensity,
   numericFields,
   shimmerIndex,
+  shortModel,
   shortLabelFor,
   sortLimits,
   SPARK_IDLE,
@@ -84,13 +85,15 @@ const SETTINGS_VERSION = 2
 const DEFAULTS: Settings = { statusOn: false, bandOn: true, density: 'auto', repoOn: true, dotsOn: true, mascotOn: true }
 /** Por debajo de este ancho de banda, Clawd no entra junto a los medidores. */
 const MASCOT_MIN_COLUMNS = 60
+const MASCOT_COLUMNS = 9
 
 let usage: Usage | null = null
 let model: string | null = null
 let counters: Counters = emptyCounters()
 let settings: Settings = { ...DEFAULTS }
 let tab: Tab = 'limits'
-let lastStatus: string | undefined
+/** null: todavía no se mandó nada, así el primer status siempre llega (y limpia el de un módulo anterior). */
+let lastStatus: string | undefined | null = null
 let statusLevel: string = 'media'
 let lastTurnRaw: Record<string, number> | null = null
 let repo: RepoInfo | null = null
@@ -441,80 +444,103 @@ export const register: Register = on => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const others = await next(e)
     const now = await $.clock.now()
-    const level = levelFor(settings.density, e.props.bodyColumns)
-    const isCompact = level === 'compacta'
-    const barWidth = level === 'completa' ? 10 : level === 'media' ? 6 : 0
+    const showMascot = settings.mascotOn && e.props.bodyColumns >= MASCOT_MIN_COLUMNS
+    // Clawd ocupa 9 columnas más 2 de aire: los medidores se miden con lo que queda.
+    const room = e.props.bodyColumns - (showMascot ? MASCOT_COLUMNS + 2 : 0)
     const limits = sortLimits(usage?.rateLimits ?? [])
-    const repoText = settings.repoOn ? repoSummary(repo, isCompact) : ''
+    const withSeps = (prefix: string, nodes: RenderChildren[]) =>
+      nodes.flatMap((node, i) => (i === 0 ? [node] : [<Text key={`${prefix}-sep-${i}`} dimColor> │ </Text>, node]))
 
-    // El modelo con un brillo que lo recorre mientras Claude trabaja.
-    const modelText = isCompact ? formatModel(model).split(' ')[0] ?? '--' : formatModel(model)
-    const glow = isWorking ? shimmerIndex(frame, modelText.length) : modelText.length
-    const brand = (
-      <Box key="brand" flexDirection="row">
-        <Text color={CLAUDE_ORANGE} bold>{isWorking ? sparkFrame(frame) : SPARK_IDLE} </Text>
-        <Text color={CLAUDE_ORANGE} bold>{modelText.slice(0, glow)}</Text>
-        <Text color={CLAUDE_GLOW} bold>{modelText.slice(glow, glow + 1)}</Text>
-        <Text color={CLAUDE_ORANGE} bold>{modelText.slice(glow + 1)}</Text>
-      </Box>
-    )
+    // Fila de arriba: modelo y medidores, con el detalle que entre en `room`.
+    const gaugesRow = (level: Level) => {
+      const isCompact = level === 'compacta'
+      const barWidth = level === 'completa' ? 10 : level === 'media' ? 6 : 0
 
-    const gauge = (key: string, label: string, labelColor: string, pct: number | undefined, resetsAt?: string) => {
-      const tone = pct === undefined ? undefined : toneFor(pct)
-      const parts = lineBar(pct === undefined ? 0 : shownPct(key, pct), barWidth)
-      const reset = level === 'completa' && resetsAt !== undefined ? formatReset(resetsAt, now, offsetMin(resetsAt)) : ''
-      return (
-        <Box key={`band-${key}`} flexDirection="row">
-          <Text color={labelColor}>{label} </Text>
-          {barWidth > 0 && <Text color={tone}>{parts.filled}</Text>}
-          {barWidth > 0 && <Text dimColor>{parts.empty}</Text>}
-          <Text color={tone} bold dimColor={isPulseDim(pct)}>{barWidth > 0 ? ' ' : ''}{formatPct(pct)}</Text>
-          {reset !== '' && <Text dimColor> ↻ {reset}</Text>}
+      // El modelo con un brillo que lo recorre mientras Claude trabaja.
+      const modelText = isCompact ? shortModel(formatModel(model)) : formatModel(model)
+      const glow = isWorking ? shimmerIndex(frame, modelText.length) : modelText.length
+      const brand = (
+        <Box key="brand" flexDirection="row">
+          <Text color={CLAUDE_ORANGE} bold>{isWorking ? sparkFrame(frame) : SPARK_IDLE} </Text>
+          <Text color={CLAUDE_ORANGE} bold>{modelText.slice(0, glow)}</Text>
+          <Text color={CLAUDE_GLOW} bold>{modelText.slice(glow, glow + 1)}</Text>
+          <Text color={CLAUDE_ORANGE} bold>{modelText.slice(glow + 1)}</Text>
         </Box>
       )
-    }
 
+      const gauge = (key: string, kind: string, labelColor: string, pct: number | undefined, resetsAt?: string): [number, RenderChildren] => {
+        const label = key === 'ctx' ? 'ctx' : isCompact ? shortLabelFor(kind) : labelFor(kind)
+        const tone = pct === undefined ? undefined : toneFor(pct)
+        const parts = lineBar(pct === undefined ? 0 : shownPct(key, pct), barWidth)
+        const reset = level === 'completa' && resetsAt !== undefined ? formatReset(resetsAt, now, offsetMin(resetsAt)) : ''
+        const length = label.length + 1 + barWidth + (barWidth > 0 ? 1 : 0) + formatPct(pct).length + (reset === '' ? 0 : reset.length + 3)
+        return [
+          length,
+          <Box key={`band-${key}`} flexDirection="row">
+            <Text color={labelColor}>{label} </Text>
+            {barWidth > 0 && <Text color={tone}>{parts.filled}</Text>}
+            {barWidth > 0 && <Text dimColor>{parts.empty}</Text>}
+            <Text color={tone} bold dimColor={isPulseDim(pct)}>{barWidth > 0 ? ' ' : ''}{formatPct(pct)}</Text>
+            {reset !== '' && <Text dimColor> ↻ {reset}</Text>}
+          </Box>,
+        ]
+      }
+
+      const items: [number, RenderChildren][] = [
+        [2 + modelText.length, brand],
+        ...(limits.length === 0
+          ? ['five_hour', 'seven_day'].map(kind => gauge(kind, kind, kindColor(kind), undefined))
+          : limits.map(l => gauge(l.kind, l.kind, kindColor(l.kind), l.percentUsed, l.resetsAt))),
+        gauge('ctx', 'ctx', CONTEXT_COLOR, usage?.context.percent),
+      ]
+      return {
+        level,
+        length: items.reduce((n, [len]) => n + len, 0) + 3 * (items.length - 1),
+        node: (
+          <Box key="band-gauges" flexDirection="row">
+            {withSeps('gauges', items.map(([, node]) => node))}
+          </Box>
+        ),
+      }
+    }
+    const levels: Level[] = settings.density === 'auto' ? ['completa', 'media', 'compacta'] : [settings.density]
+    const rows = levels.map(gaugesRow)
+    const top = rows.find(r => r.length <= room) ?? rows[rows.length - 1]!
+
+    // Fila de abajo: lo que dice Clawd, tokens, repo y el botón del panel.
+    const clawd = showMascot ? mascotFrame(frame, mood()) : null
     const t = addTokens(counters.main, counters.agents)
-    const segments = [
-      brand,
-      ...(limits.length === 0
-        ? ['five_hour', 'seven_day'].map(kind => gauge(kind, isCompact ? shortLabelFor(kind) : labelFor(kind), kindColor(kind), undefined))
-        : limits.map(l =>
-            gauge(l.kind, isCompact ? shortLabelFor(l.kind) : labelFor(l.kind), kindColor(l.kind), l.percentUsed, l.resetsAt),
-          )),
-      gauge('ctx', 'ctx', CONTEXT_COLOR, usage?.context.percent),
-      ...(isCompact ? [] : [<Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>]),
-      ...(repoText === ''
+    const repoText = settings.repoOn ? repoSummary(repo, top.level === 'compacta') : ''
+    const details = [
+      ...(clawd?.say == null
         ? []
         : [
-            <Box key="band-repo" flexDirection="row">
-              <Text color="suggestion">⎇ </Text>
-              <Text dimColor>{repoText}</Text>
-            </Box>,
+            <Text key="clawd-say" color={clawd.fx === 'alert' ? 'error' : CLAUDE_GLOW} italic>
+              ╰ {clawd.say}
+            </Text>,
           ]),
+      <Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>,
+      ...(repoText === '' ? [] : [<Text key="band-repo" color="suggestion">{repoText}</Text>]),
+      <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />,
     ]
-
-    const stats = (
-      <Box flexDirection="row" flexWrap="wrap">
-        {segments.flatMap((segment, i) => (i === 0 ? [segment] : [<Text key={`sep-${i}`} dimColor> │ </Text>, segment]))}
-        {!isCompact && (
-          <Box key="band-actions" flexDirection="row" marginLeft={2}>
-            <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />
-          </Box>
-        )}
+    const info = (
+      <Box flexDirection="column" flexShrink={1} justifyContent="center">
+        {top.node}
+        <Box key="band-details" flexDirection="row">
+          {withSeps('details', details)}
+        </Box>
       </Box>
     )
 
-    if (!settings.mascotOn || e.props.bodyColumns < MASCOT_MIN_COLUMNS) {
+    if (clawd === null) {
       return (
         <Box flexDirection="column">
-          {stats}
+          {info}
           {others}
         </Box>
       )
     }
 
-    const clawd = mascotFrame(frame, mood())
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
@@ -524,14 +550,7 @@ export const register: Register = on => {
               <Text key={`clawd-${i}`} color={CLAUDE_ORANGE}>{row}</Text>
             ))}
           </Box>
-          <Box flexDirection="column" flexShrink={1} justifyContent="center">
-            {stats}
-            {clawd.say !== null && (
-              <Text key="clawd-say" color={clawd.fx === 'alert' ? 'error' : CLAUDE_GLOW} italic>
-                ╰ {clawd.say}
-              </Text>
-            )}
-          </Box>
+          {info}
         </Box>
         {others}
       </Box>
