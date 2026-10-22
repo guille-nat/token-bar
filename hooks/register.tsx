@@ -2,10 +2,12 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   addTokens,
-  barParts,
+  CLAUDE_GLOW,
+  CLAUDE_ORANGE,
   CONTEXT_COLOR,
   type Counters,
   type Density,
+  easeToward,
   emptyCounters,
   fitStatusLine,
   formatInt,
@@ -18,9 +20,14 @@ import {
   kindColor,
   labelFor,
   levelFor,
+  lineBar,
   nextDensity,
   numericFields,
+  shimmerIndex,
+  shortLabelFor,
   sortLimits,
+  SPARK_IDLE,
+  sparkFrame,
   toneFor,
   totalInput,
   type TurnTokens,
@@ -66,7 +73,14 @@ const PANE = 'token-bar'
 const REFRESH_MS = 30_000
 /** Cada cuánto se vuelve a preguntar a GitHub/GitLab si la rama no se movió. */
 const FORGE_MS = 120_000
-const DEFAULTS: Settings = { statusOn: true, bandOn: false, density: 'auto', repoOn: true, dotsOn: true }
+/** Cuadro de las animaciones: destello, barrido del modelo y barras que se llenan. */
+const FRAME_MS = 100
+/**
+ * v2: la banda (con colores y animaciones) pasa a ser la vista por defecto y la
+ * línea de texto se apaga, porque el engine la dibuja toda en amarillo con "⚠".
+ */
+const SETTINGS_VERSION = 2
+const DEFAULTS: Settings = { statusOn: false, bandOn: true, density: 'auto', repoOn: true, dotsOn: true }
 
 let usage: Usage | null = null
 let model: string | null = null
@@ -78,6 +92,10 @@ let statusLevel: string = 'media'
 let lastTurnRaw: Record<string, number> | null = null
 let repo: RepoInfo | null = null
 let repoJob: Promise<void> | null = null
+let frame = 0
+let isWorking = false
+/** Lo que muestra cada barra mientras se acerca a su valor (clave: kind o "ctx"). */
+const shown = new Map<string, number>()
 const columns: { status: number | null; band: number | null; pane: number | null; command: number | null } = {
   status: null,
   band: null,
@@ -90,9 +108,11 @@ const offsetMin = (iso: string): number => new Date(iso).getTimezoneOffset()
 const readSettings = (raw: unknown): Settings => {
   const s = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<Settings>
   const bool = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
+  // Ajustes guardados antes de v2: se respeta todo menos dónde se dibuja.
+  const isCurrent = (s as { v?: unknown }).v === SETTINGS_VERSION
   return {
-    statusOn: bool(s.statusOn, DEFAULTS.statusOn),
-    bandOn: bool(s.bandOn, DEFAULTS.bandOn),
+    statusOn: isCurrent ? bool(s.statusOn, DEFAULTS.statusOn) : DEFAULTS.statusOn,
+    bandOn: isCurrent ? bool(s.bandOn, DEFAULTS.bandOn) : DEFAULTS.bandOn,
     density: ['auto', 'compacta', 'media', 'completa'].includes(String(s.density))
       ? (s.density as Density)
       : DEFAULTS.density,
@@ -101,7 +121,39 @@ const readSettings = (raw: unknown): Settings => {
   }
 }
 
-const saveSettings = ($: EngineInterface) => $.store.set('settings', settings)
+const saveSettings = ($: EngineInterface) => $.store.set('settings', { ...settings, v: SETTINGS_VERSION })
+
+/** Los valores de las barras: cada límite y el contexto. */
+const targets = (): [string, number][] => [
+  ...(usage?.rateLimits ?? []).map(l => [l.kind, l.percentUsed] as [string, number]),
+  ...(usage?.context.percent === undefined ? [] : [['ctx', usage.context.percent] as [string, number]]),
+]
+
+/** El valor animado de una barra; arranca en 0 para que se llene al abrir. */
+const shownPct = (key: string, pct: number): number => shown.get(key) ?? (shown.set(key, 0), 0)
+
+/** Arriba de 90 % el porcentaje late (medio segundo encendido, medio atenuado). */
+const isPulseDim = (pct: number | undefined): boolean => pct !== undefined && pct >= 90 && Math.floor(frame / 5) % 2 === 1
+
+/**
+ * Un cuadro: avanza las barras hacia su valor y redibuja solo si algo se mueve
+ * (un turno corriendo, una barra llenándose, un medidor al límite latiendo).
+ */
+const tick = ($: EngineInterface) => {
+  frame += 1
+  let isMoving = false
+  for (const [key, pct] of targets()) {
+    const from = shown.get(key)
+    if (from === undefined) continue
+    const to = easeToward(from, pct)
+    if (to !== from) {
+      shown.set(key, to)
+      isMoving = true
+    }
+  }
+  const isAlert = targets().some(([, pct]) => pct >= 90)
+  if (isMoving || isWorking || (isAlert && frame % 5 === 0)) $.ui.invalidate('ui.render')
+}
 
 const saveCounters = async ($: EngineInterface) =>
   $.store.set('counters', { sessionId: await $.session.id(), counters })
@@ -269,6 +321,7 @@ export const register: Register = on => {
     await refresh($)
     // git y gh pueden tardar: el inicio de la sesión no los espera.
     void refreshRepo($)
+    $.clock.every(FRAME_MS, () => tick($))
     $.clock.every(REFRESH_MS, () => {
       void refresh($)
       void refreshRepo($)
@@ -357,37 +410,74 @@ export const register: Register = on => {
       void updateStatus($).catch(() => {})
     }
 
+    isWorking = e.props.isWorking
     if (!settings.bandOn || e.props.hasSurvey) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const others = await next(e)
+    const now = await $.clock.now()
     const level = levelFor(settings.density, e.props.bodyColumns)
+    const isCompact = level === 'compacta'
     const barWidth = level === 'completa' ? 10 : level === 'media' ? 6 : 0
     const limits = sortLimits(usage?.rateLimits ?? [])
-    const ctx = usage?.context.percent
-    const repoText = settings.repoOn ? repoSummary(repo, level === 'compacta') : ''
+    const repoText = settings.repoOn ? repoSummary(repo, isCompact) : ''
+
+    // El modelo con un brillo que lo recorre mientras Claude trabaja.
+    const modelText = isCompact ? formatModel(model).split(' ')[0] ?? '--' : formatModel(model)
+    const glow = isWorking ? shimmerIndex(frame, modelText.length) : modelText.length
+    const brand = (
+      <Box key="brand" flexDirection="row">
+        <Text color={CLAUDE_ORANGE} bold>{isWorking ? sparkFrame(frame) : SPARK_IDLE} </Text>
+        <Text color={CLAUDE_ORANGE} bold>{modelText.slice(0, glow)}</Text>
+        <Text color={CLAUDE_GLOW} bold>{modelText.slice(glow, glow + 1)}</Text>
+        <Text color={CLAUDE_ORANGE} bold>{modelText.slice(glow + 1)}</Text>
+      </Box>
+    )
+
+    const gauge = (key: string, label: string, labelColor: string, pct: number | undefined, resetsAt?: string) => {
+      const tone = pct === undefined ? undefined : toneFor(pct)
+      const parts = lineBar(pct === undefined ? 0 : shownPct(key, pct), barWidth)
+      const reset = level === 'completa' && resetsAt !== undefined ? formatReset(resetsAt, now, offsetMin(resetsAt)) : ''
+      return (
+        <Box key={`band-${key}`} flexDirection="row">
+          <Text color={labelColor}>{label} </Text>
+          {barWidth > 0 && <Text color={tone}>{parts.filled}</Text>}
+          {barWidth > 0 && <Text dimColor>{parts.empty}</Text>}
+          <Text color={tone} bold dimColor={isPulseDim(pct)}>{barWidth > 0 ? ' ' : ''}{formatPct(pct)}</Text>
+          {reset !== '' && <Text dimColor> ↻ {reset}</Text>}
+        </Box>
+      )
+    }
+
+    const t = addTokens(counters.main, counters.agents)
+    const segments = [
+      brand,
+      ...(limits.length === 0
+        ? ['five_hour', 'seven_day'].map(kind => gauge(kind, isCompact ? shortLabelFor(kind) : labelFor(kind), kindColor(kind), undefined))
+        : limits.map(l =>
+            gauge(l.kind, isCompact ? shortLabelFor(l.kind) : labelFor(l.kind), kindColor(l.kind), l.percentUsed, l.resetsAt),
+          )),
+      gauge('ctx', 'ctx', CONTEXT_COLOR, usage?.context.percent),
+      ...(isCompact ? [] : [<Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>]),
+      ...(repoText === ''
+        ? []
+        : [
+            <Box key="band-repo" flexDirection="row">
+              <Text color="suggestion">⎇ </Text>
+              <Text dimColor>{repoText}</Text>
+            </Box>,
+          ]),
+    ]
 
     return (
       <Box flexDirection="column">
-        <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-          {model !== null && <Text color="claude">{formatModel(model)}</Text>}
-          {limits.length === 0 && <Text dimColor>Límites --</Text>}
-          {limits.map(l => {
-            const parts = barParts(l.percentUsed, barWidth)
-            return (
-              <Box key={`band-${l.kind}`} flexDirection="row">
-                <Text color={kindColor(l.kind)}>{labelFor(l.kind)} </Text>
-                {barWidth > 0 && <Text color={toneFor(l.percentUsed)}>{parts.filled}</Text>}
-                {barWidth > 0 && <Text dimColor>{parts.empty}</Text>}
-                <Text color={toneFor(l.percentUsed)}> {formatPct(l.percentUsed)}</Text>
-              </Box>
-            )
-          })}
-          <Box flexDirection="row">
-            <Text color={CONTEXT_COLOR}>ctx </Text>
-            <Text color={ctx === undefined ? undefined : toneFor(ctx)}>{formatPct(ctx)}</Text>
-          </Box>
-          {repoText !== '' && <Text dimColor>{repoText}</Text>}
+        <Box flexDirection="row" flexWrap="wrap">
+          {segments.flatMap((segment, i) => (i === 0 ? [segment] : [<Text key={`sep-${i}`} dimColor> │ </Text>, segment]))}
+          {!isCompact && (
+            <Box key="band-actions" flexDirection="row" marginLeft={2}>
+              <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />
+            </Box>
+          )}
         </Box>
         {others}
       </Box>
@@ -418,15 +508,15 @@ export const register: Register = on => {
     }
 
     const meter = (key: string, label: string, labelColor: string, pct: number | undefined, tail: string) => {
-      const parts = barParts(pct ?? 0, barWidth)
+      const parts = lineBar(pct === undefined ? 0 : shownPct(key.replace(/^lim-/, ''), pct), barWidth)
       const tone = pct === undefined ? undefined : toneFor(pct)
       return (
         <Box key={key} flexDirection={isWide ? 'row' : 'column'}>
           <Box flexDirection="row" flexShrink={0}>
             <Text color={labelColor}>{label.padEnd(15)}</Text>
             <Text color={tone}>{pct === undefined ? '' : parts.filled}</Text>
-            <Text dimColor>{pct === undefined ? '░'.repeat(barWidth) : parts.empty}</Text>
-            <Text color={tone} weight="semibold"> {formatPct(pct).padStart(4)}</Text>
+            <Text dimColor>{parts.empty}</Text>
+            <Text color={tone} weight="semibold" dimColor={isPulseDim(pct)}> {formatPct(pct).padStart(4)}</Text>
           </Box>
           {tail !== '' && (
             <Box flexShrink={1} paddingLeft={isWide ? 0 : 15}>
@@ -468,7 +558,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box flexDirection="row">
           <Text dimColor>{'Modelo'.padEnd(15)}</Text>
-          <Text color="claude" weight="semibold">{formatModel(model)}</Text>
+          <Text color={CLAUDE_ORANGE} weight="semibold">{SPARK_IDLE} {formatModel(model)}</Text>
         </Box>
         {limits.length === 0 &&
           ['five_hour', 'seven_day'].map(kind => meter(`lim-${kind}`, labelFor(kind), kindColor(kind), undefined, '  sin datos'))}

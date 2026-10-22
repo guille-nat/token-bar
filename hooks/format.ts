@@ -177,6 +177,40 @@ export const bar = (pct: number, width: number): string => {
   return '█'.repeat(filled) + '░'.repeat(width - filled)
 }
 
+/** El naranja de Claude y su brillo, para el destello y el nombre del modelo. */
+export const CLAUDE_ORANGE = '#D97757'
+export const CLAUDE_GLOW = '#FBD3BF'
+
+/** El destello de Claude mientras corre un turno, de ida y vuelta como su spinner. */
+export const SPARK_FRAMES = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢'] as const
+export const SPARK_IDLE = '✻'
+
+export const sparkFrame = (frame: number): string =>
+  SPARK_FRAMES[((frame % SPARK_FRAMES.length) + SPARK_FRAMES.length) % SPARK_FRAMES.length] ?? SPARK_IDLE
+
+/**
+ * Barra fina con media celda: "━━━━╸────". `filled` va con el color del nivel
+ * y `empty` atenuada; solo usa caracteres de cajas, que traen todas las fuentes.
+ */
+export const lineBar = (pct: number, width: number): { filled: string; empty: string } => {
+  const halves = Math.max(0, Math.min(width * 2, Math.round((pct / 100) * width * 2)))
+  const full = Math.floor(halves / 2)
+  const half = halves % 2
+  return { filled: '━'.repeat(full) + (half === 1 ? '╸' : ''), empty: '─'.repeat(width - full - half) }
+}
+
+/**
+ * El carácter que brilla en el barrido sobre un texto de `length` letras;
+ * `length` o más es la pausa entre pasadas (no brilla ninguno).
+ */
+export const shimmerIndex = (frame: number, length: number): number => frame % (length + 8)
+
+/** Un paso de una barra hacia su valor: rápido al principio, suave al llegar. */
+export const easeToward = (from: number, to: number): number => {
+  const d = to - from
+  return Math.abs(d) < 0.4 ? to : from + d * 0.3
+}
+
 /** Las dos mitades de una barra, para colorear la llena y atenuar la vacía. */
 export const barParts = (pct: number, width: number): { filled: string; empty: string } => {
   const b = bar(pct, width)

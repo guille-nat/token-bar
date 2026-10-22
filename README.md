@@ -1,6 +1,6 @@
 # token-bar
 
-Mod de Claude Code que muestra el consumo de tokens, los límites del plan, el modelo en uso y el estado del repo (git, GitHub/GitLab): una línea bajo el prompt, un panel interactivo (`/token-bar`), una banda opcional sobre el prompt y un comando de depuración (`/token-bar-debug`).
+Mod de Claude Code que muestra el consumo de tokens, los límites del plan, el modelo en uso y el estado del repo (git, GitHub/GitLab): una banda animada con colores sobre el prompt, un panel interactivo (`/token-bar`), una línea de texto opcional bajo el prompt y un comando de depuración (`/token-bar-debug`).
 
 Requiere Claude Code con soporte de mods (probado en 2.1.303). La documentación completa está en [Doc/](Doc/README.md).
 
@@ -72,9 +72,9 @@ claude plugin marketplace remove guille-nat
 
 | Qué | Cómo |
 | --- | --- |
-| Línea de estado bajo el prompt | Siempre visible: sesión, límites del plan, modelo y repo con 4 niveles de color. |
+| Banda sobre el prompt | Visible por defecto: modelo con el destello de Claude, límites, contexto y repo con barras animadas. `t` (con la banda enfocada) abre el panel. |
 | Panel interactivo | `/token-bar` (pestañas Plan, Repo, Leyenda y Ajustes). |
-| Banda sobre el prompt | Se activa desde Ajustes en el panel. |
+| Línea de texto bajo el prompt | Opcional, se activa con `b` en Ajustes del panel. |
 | Depuración | `/token-bar-debug` muestra los datos crudos que devuelve el engine. |
 
 ## Desarrollo

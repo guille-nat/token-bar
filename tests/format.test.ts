@@ -2,6 +2,9 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   bar,
+  easeToward,
+  lineBar,
+  sparkFrame,
   dotFor,
   emptyCounters,
   fitStatusLine,
@@ -186,4 +189,13 @@ test('numericFields aplana los números de un objeto', () => {
     durationMs: 5,
     'usage.input_tokens': 3,
   })
+})
+
+test('lineBar: media celda y ancho fijo', () => {
+  expect(lineBar(0, 6)).toEqual({ filled: '', empty: '──────' })
+  expect(lineBar(25, 6)).toEqual({ filled: '━╸', empty: '────' })
+  expect(lineBar(100, 6)).toEqual({ filled: '━━━━━━', empty: '' })
+  expect(sparkFrame(4)).toBe('✻')
+  expect(easeToward(0, 10)).toBe(3)
+  expect(easeToward(9.8, 10)).toBe(10)
 })

@@ -61,9 +61,16 @@ const ok = (stdout: string): Run => ({ exitCode: 0, stdout })
  * Todos los stubs que el mod necesita; devuelve lo que el mod escribió. Sin
  * `repo`, la sesión no corre en un repo git.
  */
-const stubEngine = (on: On, usage: SessionUsage, onUsage: () => void = () => {}, repo?: Repo) => {
+const stubEngine = (
+  on: On,
+  usage: SessionUsage,
+  onUsage: () => void = () => {},
+  repo?: Repo,
+  // La línea de texto viene apagada desde v2: casi todas las pruebas la miran.
+  settings: unknown = { v: 2, statusOn: true },
+) => {
   const statuses: (string | undefined)[] = []
-  const saved = new Map<string, unknown>()
+  const saved = new Map<string, unknown>([['settings', settings]])
   const runs: string[][] = []
   const clock = mock.clock(on, { now: NOW })
   on('session.usage', () => {
@@ -206,22 +213,58 @@ test('turn.complete suma tokens y la barra se adapta al ancho', async ($, on) =>
   expect(statuses.at(-1)).toBe('Opus · 🟢S 23% · 🟠W 76% · 🔴F 92% · 🟢ctx 12%')
 })
 
-test('la banda está apagada por defecto y, encendida, conserva la de otros mods', async ($, on) => {
+test('la banda está encendida por defecto, conserva la de otros mods y se apaga', async ($, on) => {
   const { saved } = stubEngine(on, WITH_FABLE)
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-
-  const off = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await off.find({ type: 'Text', text: /Sesión/ })).toBeUndefined()
-  await off.unmount()
-
-  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await pane.press({ key: 'tab-settings' })
-  await pane.press({ key: 'toggle-band' })
-  expect((saved.get('settings') as { bandOn: boolean }).bandOn).toBe(true)
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await band.find({ type: 'Text', text: /Sesión/ })).toBeDefined()
   expect(await band.find({ type: 'Text', text: 'banda de otro mod' })).toBeDefined()
+  expect(await band.find({ key: 'band-panel' })).toBeDefined()
+  await band.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'tab-settings' })
+  await pane.press({ key: 'toggle-band' })
+  expect((saved.get('settings') as { bandOn: boolean; v: number })).toMatchObject({ bandOn: false, v: 2 })
+
+  const off = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await off.find({ type: 'Text', text: /Sesión/ })).toBeUndefined()
+})
+
+test('ajustes de antes de v2: pasa a la banda y apaga la línea de texto', async ($, on) => {
+  const { statuses } = stubEngine(on, WITH_FABLE, () => {}, undefined, { statusOn: true, bandOn: false, density: 'compacta' })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  expect(statuses.filter(s => s !== undefined)).toEqual([])
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // La densidad guardada se respeta: compacta usa las etiquetas cortas.
+  expect(await band.find({ type: 'Text', text: /^S $/ })).toBeDefined()
+})
+
+test('animaciones: el destello gira mientras trabaja y las barras se llenan', async ($, on) => {
+  const { clock } = stubEngine(on, WITH_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  const idle = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await idle.find({ type: 'Text', text: '✻ ' })).toBeDefined()
+  // La barra arranca vacía y, unos cuadros después, llega a su valor.
+  expect(await idle.find({ type: 'Text', text: /^─{10}$/ })).toBeDefined()
+  await idle.unmount()
+  await clock.advance(3_000)
+  const filled = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await filled.find({ type: 'Text', text: /^━━╸$/ })).toBeDefined()
+  await filled.unmount()
+
+  const working = { ...BAND, surface: 'terminal', props: { ...BAND.props, isWorking: true } } as const
+  const first = await $.ui.mount(working)
+  const sparkA = (await first.find({ type: 'Text', text: /^[·✢✳✶✻✽] $/ }))?.children
+  await first.unmount()
+  await clock.advance(100)
+  const second = await $.ui.mount(working)
+  const sparkB = (await second.find({ type: 'Text', text: /^[·✢✳✶✻✽] $/ }))?.children
+  expect(sparkA).toBeDefined()
+  expect(sparkB).not.toEqual(sparkA)
 })
 
 test('ajustes: apagar la barra la limpia con undefined y la densidad cicla', async ($, on) => {

@@ -1,5 +1,7 @@
 # Barra de estado bajo el prompt
-> Última actualización: 2026-10-19
+> Última actualización: 2026-10-22
+
+> Desde 2026-10-22 viene **apagada por defecto**: la vista principal es la banda ([banda.md](banda.md)). Se prende con `b` en Ajustes.
 
 ## Qué hace
 Una línea de texto plano con `$.ui.status(text)`: modelo, un punto de color por nivel de uso, barras █░, % usado, hora de reinicio en 12 h es-AR, % de contexto, tokens entrada/salida de la sesión y el resumen del repo ([repo.md](repo.md)).
@@ -24,7 +26,7 @@ Solo se llama a `status` si el texto cambió.
 - **Decisión:** sin colores en la barra.
   **Por qué:** verificado en vivo, el ESC de una secuencia ANSI se reemplaza por U+FFFD (se ve `�[31m`) y el engine pinta toda la línea en ámbar con `⚠`. Los colores van en la banda y el panel.
 - **Decisión:** el nivel de uso se muestra con emojis de color (🟢🟡🟠🔴), que no son ANSI.
-  **Por qué:** pedido del usuario, ver el nivel a simple vista también en la barra. Un emoji mide 2 en `.length` y ocupa 2 columnas, así que `fitStatusLine` sigue midiendo bien. Todavía no se verificó en vivo cómo los dibuja el engine; si se ven mal, `p` los apaga.
+  **Por qué:** pedido del usuario, ver el nivel a simple vista también en la barra. Un emoji mide 2 en `.length` y ocupa 2 columnas, así que `fitStatusLine` sigue midiendo bien. Verificado en vivo en Linux: sin fuente de emojis a color salen como círculos huecos; por eso la línea pasó a estar apagada por defecto.
 - **Decisión:** el modelo va primero y el repo al final.
   **Por qué:** si la terminal corta con `…`, lo último que se pierde es lo que más se mira (modelo y límites).
 - **Decisión:** "lun 7:00 a. m." hasta 7 días adelante (inclusive) y "dd/mm" más lejos.
@@ -40,3 +42,4 @@ Los textos están en `statusLine` y las etiquetas en `labelFor` (`format.ts`). L
 ## Historial
 - 2026-10-19: versión inicial; pasó de umbrales fijos a "lo que entra" después de verlo en vivo.
 - 2026-10-19: modelo, puntos de nivel y tramo del repo.
+- 2026-10-22: apagada por defecto; la banda la reemplaza.

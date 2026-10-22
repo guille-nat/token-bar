@@ -2,7 +2,7 @@
 > Última actualización: 2026-10-19
 
 ## Qué hace
-`/token-bar` abre un pane con cinco pestañas: 1 Límites (con el modelo arriba), 2 Tokens, 3 Ajustes, 4 Repo ([repo.md](repo.md)) y 5 Leyenda. Las barras se pintan por nivel de uso y el nombre de cada medidor tiene su propio color. Esc lo cierra. La banda sobre el prompt (apagada por defecto) muestra en una fila el modelo, los límites, ctx y el resumen del repo.
+`/token-bar` abre un pane con cinco pestañas: 1 Límites (con el modelo arriba), 2 Tokens, 3 Ajustes, 4 Repo ([repo.md](repo.md)) y 5 Leyenda. Las barras se pintan por nivel de uso y el nombre de cada medidor tiene su propio color. Esc lo cierra. La banda sobre el prompt (encendida por defecto, ver [banda.md](banda.md)) muestra en una fila el modelo, los límites, ctx y el resumen del repo, con animaciones.
 
 ## Cómo funciona
 - `command.run` → `$.ui.open({ id: 'token-bar', focus: true, closeOnEscape: true })`; el `ui.render` del `Pane` dibuja la pestaña activa (`tab`, variable del módulo).
