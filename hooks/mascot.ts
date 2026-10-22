@@ -25,6 +25,8 @@ export type Mood = {
   alert: { label: string; pct: number } | null
   /** El porcentaje más alto entre los medidores (0 sin datos). */
   maxPct: number
+  /** Sin animaciones: Clawd queda quieto en su pose base. */
+  isStill?: boolean
 }
 
 const BLANK = '         '
@@ -98,7 +100,7 @@ export const mascotFrame = (tick: number, mood: Mood): MascotFrame => {
     }
   }
 
-  const name = loopPose(tick)
+  const name = mood.isStill ? 'base' : loopPose(tick)
   const pose: Pose = POSES[name]
   if (mood.alert !== null) {
     return {

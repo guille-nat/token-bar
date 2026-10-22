@@ -43,6 +43,12 @@ claude plugin update token-bar@guille-nat
 
 y luego `/reload-plugins` en las sesiones abiertas.
 
+### Llevar tu configuración a otra máquina
+
+1. En la que ya la tenés: `/token-bar-config export` (guarda `~/.config/token-bar/config.json` y copia el JSON). Guardalo donde quieras (dotfiles, gist).
+2. En la máquina nueva, al instalar el mod, la pantalla de opciones pide un **preset inicial** y un **archivo de configuración** opcional: poné la ruta del JSON y se importa solo.
+3. O después, ya instalado: `/token-bar-config import ~/ruta/token-bar.json`, o pegando el JSON: `/token-bar-config import {...}`.
+
 ### En la máquina donde está clonado el repo (desarrollo)
 
 Se registra la carpeta como marketplace local e instala a nivel usuario. Claude lo lee directo desde la carpeta, sin copia: editás, corrés `/reload-plugins` y toma los cambios.
@@ -73,7 +79,9 @@ claude plugin marketplace remove guille-nat
 | Qué | Cómo |
 | --- | --- |
 | Banda sobre el prompt | Visible por defecto: Clawd animado (saluda, baila, duerme, avisa al límite), modelo con el destello de Claude, límites, contexto y repo con barras animadas. `t` (con la banda enfocada) abre el panel. |
-| Panel interactivo | `/token-bar` (pestañas Plan, Repo, Leyenda y Ajustes). |
+| Panel interactivo | `/token-bar` (pestañas Límites, Tokens, Ajustes, Repo, Leyenda e Info). |
+| Elegir qué se ve | Pestaña **Info** del panel: interruptores, presets (mínima, normal, completa), cortes de color y animaciones. |
+| Config portable | `/token-bar-config export` / `import` (ver [Doc](Doc/funcionalidades/configuracion.md)). |
 | Línea de texto bajo el prompt | Opcional, se activa con `b` en Ajustes del panel. |
 | Depuración | `/token-bar-debug` muestra los datos crudos que devuelve el engine. |
 

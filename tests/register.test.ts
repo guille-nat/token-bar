@@ -70,7 +70,10 @@ const stubEngine = (
   settings: unknown = { v: 2, statusOn: true },
 ) => {
   const statuses: (string | undefined)[] = []
-  const saved = new Map<string, unknown>([['settings', settings]])
+  // `null`: una máquina sin nada guardado todavía.
+  const saved = new Map<string, unknown>(settings === null ? [] : [['settings', settings]])
+  const files = new Map<string, string>()
+  const copied: string[] = []
   const runs: string[][] = []
   const clock = mock.clock(on, { now: NOW })
   on('session.usage', () => {
@@ -94,6 +97,16 @@ const stubEngine = (
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.toast', () => ({ value: undefined }))
+  on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/yo' : undefined }))
+  on('fs.read', ($, e) => (files.has(e.path) ? { value: files.get(e.path) ?? '' } : { deny: 'ENOENT' }))
+  on('fs.write', ($, e) => {
+    files.set(e.path, e.text)
+    return { value: undefined }
+  })
+  on('ui.copy', ($, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
   on('ui.status', ($, e) => {
     statuses.push(e.text)
     return { value: undefined }
@@ -104,7 +117,7 @@ const stubEngine = (
     return { value: undefined }
   })
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['banda de otro mod'] }))
-  return { statuses, saved, clock, runs }
+  return { statuses, saved, clock, runs, files, copied }
 }
 
 const STATUS = [
@@ -292,7 +305,7 @@ test('Clawd saluda en la banda, cambia de pose y se apaga en Ajustes', async ($,
   await narrow.unmount()
 
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await pane.press({ key: 'tab-settings' })
+  await pane.press({ key: 'tab-info' })
   await pane.press({ key: 'toggle-mascot' })
   expect((saved.get('settings') as { mascotOn: boolean }).mascotOn).toBe(false)
   const off = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -489,4 +502,165 @@ test('con un límite ≥90 % Clawd avisa cuál', async ($, on) => {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await band.find({ type: 'Text', text: /¡ojo! Fable semanal al 92%/ })).toBeDefined()
+})
+
+const CONFIG_FILE = '/home/yo/.config/token-bar/config.json'
+
+test('preset mínima desde la pestaña Info: sin Clawd ni tokens, y se guarda', async ($, on) => {
+  const { saved } = stubEngine(on, WITHOUT_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'tab-info' })
+  await pane.press({ key: 'preset-minima' })
+  expect(saved.get('settings')).toMatchObject({ v: 2, mascotOn: false, density: 'compacta', show: { tokens: false, session: true } })
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ key: 'clawd' })).toBeUndefined()
+  expect(await band.find({ type: 'Text', text: /↑/ })).toBeUndefined()
+  expect(await band.find({ type: 'Text', text: /^S $/ })).toBeDefined()
+})
+
+test('cada interruptor de Info oculta su dato de la banda', async ($, on) => {
+  const { saved } = stubEngine(on, WITH_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  const before = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await before.find({ type: 'Text', text: /Semana/ })).toBeDefined()
+  expect(await before.find({ type: 'Text', text: /Fable/ })).toBeDefined()
+  expect(await before.find({ type: 'Text', text: /↑/ })).toBeDefined()
+  await before.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'tab-info' })
+  await pane.press({ key: 'show-week' })
+  await pane.press({ key: 'show-fable' })
+  await pane.press({ key: 'show-tokens' })
+  expect(saved.get('settings')).toMatchObject({ show: { week: false, fable: false, tokens: false, session: true } })
+
+  const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await after.find({ type: 'Text', text: /Semana/ })).toBeUndefined()
+  expect(await after.find({ type: 'Text', text: /Fable/ })).toBeUndefined()
+  expect(await after.find({ type: 'Text', text: /↑/ })).toBeUndefined()
+  expect(await after.find({ type: 'Text', text: /Sesión/ })).toBeDefined()
+})
+
+test('el costo y el repo se eligen por partes', async ($, on) => {
+  stubEngine(on, WITHOUT_FABLE, () => {}, githubRepo())
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'refresh' })
+
+  expect(await (await $.ui.mount({ ...BAND, surface: 'terminal' })).find({ type: 'Text', text: 'feat/repo ⇡2 ±3 #12 ✗' })).toBeDefined()
+  await pane.press({ key: 'tab-info' })
+  await pane.press({ key: 'show-repoSync' })
+  await pane.press({ key: 'show-repoCi' })
+  await pane.press({ key: 'show-cost' })
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: 'feat/repo ±3 #12' })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: /US\$ 0,42/ })).toBeDefined()
+})
+
+test('animaciones apagadas: las barras llegan al instante y Clawd queda quieto', async ($, on) => {
+  const { clock } = stubEngine(on, WITHOUT_FABLE, () => {}, undefined, { v: 2, statusOn: true, animations: false })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /^━+╸?$/ })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: /¡Hola!/ })).toBeUndefined()
+  await band.unmount()
+  await clock.advance(5_000)
+  const later = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await later.find({ type: 'Text', text: /¡Hola!/ })).toBeUndefined()
+})
+
+test('cortes de color: el botón los cicla y se guardan', async ($, on) => {
+  const { saved } = stubEngine(on, WITHOUT_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'tab-info' })
+  expect(await pane.find({ key: 'levels' })).toBeDefined()
+  await pane.press({ key: 'levels' })
+  expect(saved.get('settings')).toMatchObject({ levels: [60, 80, 95] })
+})
+
+test('exportar guarda un JSON y lo copia; cambiar y importar lo restaura', async ($, on) => {
+  const { saved, files, copied } = stubEngine(on, WITHOUT_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'tab-info' })
+
+  await pane.press({ key: 'show-tokens' })
+  await pane.press({ key: 'cfg-export' })
+  expect(JSON.parse(files.get(CONFIG_FILE) ?? '{}')).toMatchObject({ tokenBar: 'config', show: { tokens: false } })
+  expect(copied.at(-1)).toBe(files.get(CONFIG_FILE))
+
+  await pane.press({ key: 'preset-completa' })
+  expect(saved.get('settings')).toMatchObject({ show: { tokens: true, cost: true } })
+  await pane.press({ key: 'cfg-import' })
+  expect(saved.get('settings')).toMatchObject({ show: { tokens: false, cost: false } })
+})
+
+test('/token-bar-config: export, import de un archivo o JSON pegado, preset y reset', async ($, on) => {
+  const { saved, files } = stubEngine(on, WITHOUT_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const run = async (args: string) =>
+    ($.command.run({ command: 'token-bar-config', args, presentation: { isFullscreen: true, columns: 132 } } as never) as Promise<{ text?: string }>).then(r => r.text ?? '')
+
+  expect(await run('export ~/dotfiles/tb.json')).toContain('/home/yo/dotfiles/tb.json')
+  expect(files.has('/home/yo/dotfiles/tb.json')).toBe(true)
+
+  expect(await run('preset minima')).toBe('Preset minima aplicado.')
+  expect(saved.get('settings')).toMatchObject({ mascotOn: false })
+  expect(await run('preset enorme')).toContain('preset desconocido')
+
+  expect(await run('import ~/dotfiles/tb.json')).toContain('Config importada')
+  expect(saved.get('settings')).toMatchObject({ mascotOn: true })
+
+  expect(await run('import {"show":{"cost":true},"tema":"x"}')).toBe('Config importada y guardada. Claves ignoradas: tema.')
+  expect(saved.get('settings')).toMatchObject({ show: { cost: true } })
+
+  expect(await run('import ~/no-existe.json')).toContain('no se pudo leer /home/yo/no-existe.json')
+  expect(await run('import {roto')).toContain('no es un JSON válido')
+  expect(await run('reset')).toContain('restablecida')
+  expect(saved.get('settings')).toMatchObject({ show: { cost: false } })
+  expect(await run('ayuda')).toContain('Subcomandos')
+})
+
+test('primera vez en una máquina: el preset de userConfig', { options: { preset: 'minima', configFile: '' } }, async ($, on) => {
+  const { saved } = stubEngine(on, WITHOUT_FABLE, () => {}, undefined, null)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(saved.get('settings')).toMatchObject({ mascotOn: false, show: { tokens: false } })
+})
+
+test('primera vez: configFile manda sobre el preset', { options: { preset: 'completa', configFile: '~/dotfiles/tb.json' } }, async ($, on) => {
+  const { saved, files } = stubEngine(on, WITHOUT_FABLE, () => {}, undefined, null)
+  files.set('/home/yo/dotfiles/tb.json', '{ "show": { "session": false }, "mascotOn": false }')
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(saved.get('settings')).toMatchObject({ mascotOn: false, show: { session: false, week: true, cost: false } })
+})
+
+test('primera vez: si configFile no se puede leer, usa el preset', { options: { preset: 'completa', configFile: '~/no-esta.json' } }, async ($, on) => {
+  const { saved } = stubEngine(on, WITHOUT_FABLE, () => {}, undefined, null)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(saved.get('settings')).toMatchObject({ density: 'completa', show: { cost: true } })
+})
+
+test('con algo guardado, userConfig no pisa lo que cambió el usuario', { options: { preset: 'completa', configFile: '' } }, async ($, on) => {
+  const { saved } = stubEngine(on, WITHOUT_FABLE, () => {}, undefined, { v: 2, show: { tokens: false } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(saved.get('settings')).toEqual({ v: 2, show: { tokens: false } })
+})
+
+test('la pestaña Info lista todos los interruptores y los presets', async ($, on) => {
+  stubEngine(on, WITHOUT_FABLE)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const pane = await $.ui.mount({ ...PANE, surface })
+    await pane.press({ key: 'tab-info' })
+    for (const key of ['preset-minima', 'preset-normal', 'preset-completa', 'show-model', 'show-cost', 'show-repoCi', 'toggle-mascot', 'toggle-say', 'toggle-animations', 'levels', 'cfg-export', 'cfg-import']) {
+      expect(await pane.find({ key })).toBeDefined()
+    }
+    await pane.unmount()
+  }
 })

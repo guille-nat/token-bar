@@ -1,6 +1,21 @@
 {
   "name": "token-bar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Barra y panel de consumo de tokens y límites del plan",
-  "author": { "name": "Guillermo Natali Ulla" }
+  "author": { "name": "Guillermo Natali Ulla" },
+  "userConfig": {
+    "preset": {
+      "type": "string",
+      "title": "Preset inicial",
+      "description": "Qué se muestra la primera vez en esta máquina: minima, normal o completa. Después se cambia desde /token-bar (pestaña Info).",
+      "default": "normal",
+      "options": ["minima", "normal", "completa"]
+    },
+    "configFile": {
+      "type": "string",
+      "title": "Archivo de configuración (opcional)",
+      "description": "Ruta de un config.json de token-bar (por ejemplo ~/dotfiles/token-bar.json, creado con /token-bar-config export). Si existe, se importa la primera vez y manda sobre el preset.",
+      "default": ""
+    }
+  }
 }

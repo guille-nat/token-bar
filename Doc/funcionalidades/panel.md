@@ -2,11 +2,11 @@
 > Última actualización: 2026-10-19
 
 ## Qué hace
-`/token-bar` abre un pane con cinco pestañas: 1 Límites (con el modelo arriba), 2 Tokens, 3 Ajustes, 4 Repo ([repo.md](repo.md)) y 5 Leyenda. Las barras se pintan por nivel de uso y el nombre de cada medidor tiene su propio color. Esc lo cierra. La banda sobre el prompt (encendida por defecto, ver [banda.md](banda.md)) muestra en una fila el modelo, los límites, ctx y el resumen del repo, con animaciones.
+`/token-bar` abre un pane con seis pestañas: 1 Límites (con el modelo arriba), 2 Tokens, 3 Ajustes, 4 Repo ([repo.md](repo.md)), 5 Leyenda y 6 Info (qué se muestra, presets y config exportable: [configuracion.md](configuracion.md)). Las barras se pintan por nivel de uso y el nombre de cada medidor tiene su propio color. Esc lo cierra. La banda sobre el prompt (encendida por defecto, ver [banda.md](banda.md)) muestra en una fila el modelo, los límites, ctx y el resumen del repo, con animaciones.
 
 ## Cómo funciona
 - `command.run` → `$.ui.open({ id: 'token-bar', focus: true, closeOnEscape: true })`; el `ui.render` del `Pane` dibuja la pestaña activa (`tab`, variable del módulo).
-- Botones, todos `plain` con `hotkey`: `1`–`5` pestañas, `u` refrescar (uso, modelo y repo forzado), y en Ajustes `b` barra inferior, `a` banda, `d` densidad (auto → compacta → media → completa), `p` puntos de color en la barra, `m` Clawd en la banda, `g` datos del repo, `r` reiniciar contadores.
+- Botones, todos `plain` con `hotkey`: `1`–`6` pestañas, `u` refrescar (uso, modelo y repo forzado), y en Ajustes `b` barra inferior, `a` banda, `d` densidad (auto → compacta → media → completa), `p` puntos de color en la barra, `g` datos del repo, `r` reiniciar contadores.
 - Los ajustes (`statusOn`, `bandOn`, `density`, `dotsOn`, `repoOn`) se guardan en `$.store` bajo `settings`; los que faltan toman el valor por defecto (los dos nuevos, activados).
 - Colores (`hooks/format.ts`):
   - Nivel de uso, `USAGE_LEVELS`: 🟢 <50% holgado (`success`), 🟡 50–74% a mitad (`warning`), 🟠 75–89% atención (`claude`), 🔴 ≥90% al límite (`error`).

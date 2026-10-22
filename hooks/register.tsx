@@ -1,12 +1,30 @@
-import type { EngineInterface, Register, RenderChildren } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, RenderChildren } from 'claude-code'
 
+import {
+  applyPreset,
+  DEFAULT_CONFIG_PATH,
+  exportConfig,
+  expandHome,
+  formatLevels,
+  isPreset,
+  limitKey,
+  nextLevels,
+  parseConfig,
+  PRESET_NAMES,
+  readSettings,
+  type Settings,
+  SHOW_KEYS,
+  SHOW_LABELS,
+  type ShowKey,
+  toStored,
+} from './config'
 import {
   addTokens,
   CLAUDE_GLOW,
   CLAUDE_ORANGE,
   CONTEXT_COLOR,
+  currentLevelMins,
   type Counters,
-  type Density,
   type Level,
   easeToward,
   emptyCounters,
@@ -25,6 +43,7 @@ import {
   numericFields,
   shimmerIndex,
   shortModel,
+  setLevelMins,
   shortLabelFor,
   sortLimits,
   SPARK_IDLE,
@@ -68,8 +87,7 @@ import {
 // y se redibuja con $.ui.invalidate; lo que debe sobrevivir a un hot-reload va
 // a $.store.
 
-type Tab = 'limits' | 'tokens' | 'settings' | 'repo' | 'legend'
-type Settings = { statusOn: boolean; bandOn: boolean; density: Density; repoOn: boolean; dotsOn: boolean; mascotOn: boolean }
+type Tab = 'limits' | 'tokens' | 'settings' | 'repo' | 'legend' | 'info'
 
 const PANE = 'token-bar'
 const REFRESH_MS = 30_000
@@ -77,12 +95,6 @@ const REFRESH_MS = 30_000
 const FORGE_MS = 120_000
 /** Cuadro de las animaciones: destello, barrido del modelo y barras que se llenan. */
 const FRAME_MS = 100
-/**
- * v2: la banda (con colores y animaciones) pasa a ser la vista por defecto y la
- * línea de texto se apaga, porque el engine la dibuja toda en amarillo con "⚠".
- */
-const SETTINGS_VERSION = 2
-const DEFAULTS: Settings = { statusOn: false, bandOn: true, density: 'auto', repoOn: true, dotsOn: true, mascotOn: true }
 /** Por debajo de este ancho de banda, Clawd no entra junto a los medidores. */
 const MASCOT_MIN_COLUMNS = 72
 /** Ancho de la columna donde Clawd dice su comentario (y debajo del modelo). */
@@ -92,7 +104,7 @@ const MASCOT_COLUMNS = 9
 let usage: Usage | null = null
 let model: string | null = null
 let counters: Counters = emptyCounters()
-let settings: Settings = { ...DEFAULTS }
+let settings: Settings = readSettings(undefined)
 let tab: Tab = 'limits'
 /** null: todavía no se mandó nada, así el primer status siempre llega (y limpia el de un módulo anterior). */
 let lastStatus: string | undefined | null = null
@@ -114,24 +126,97 @@ const columns: { status: number | null; band: number | null; pane: number | null
 
 const offsetMin = (iso: string): number => new Date(iso).getTimezoneOffset()
 
-const readSettings = (raw: unknown): Settings => {
-  const s = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<Settings>
-  const bool = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
-  // Ajustes guardados antes de v2: se respeta todo menos dónde se dibuja.
-  const isCurrent = (s as { v?: unknown }).v === SETTINGS_VERSION
-  return {
-    statusOn: isCurrent ? bool(s.statusOn, DEFAULTS.statusOn) : DEFAULTS.statusOn,
-    bandOn: isCurrent ? bool(s.bandOn, DEFAULTS.bandOn) : DEFAULTS.bandOn,
-    density: ['auto', 'compacta', 'media', 'completa'].includes(String(s.density))
-      ? (s.density as Density)
-      : DEFAULTS.density,
-    repoOn: bool(s.repoOn, DEFAULTS.repoOn),
-    dotsOn: bool(s.dotsOn, DEFAULTS.dotsOn),
-    mascotOn: bool(s.mascotOn, DEFAULTS.mascotOn),
-  }
+const saveSettings = ($: EngineInterface) => $.store.set('settings', toStored(settings))
+
+/** Aplica ajustes: son los de la sesión y fijan los cortes de color. */
+const applySettings = (next: Settings) => {
+  settings = next
+  setLevelMins(next.levels)
 }
 
-const saveSettings = ($: EngineInterface) => $.store.set('settings', { ...settings, v: SETTINGS_VERSION })
+/** Desde dónde el medidor es "al límite": late y hace que Clawd avise. */
+const alertAt = (): number => currentLevelMins()[3] ?? 90
+
+type Loaded = { settings: Settings; ignored: string[]; path: string } | { error: string }
+
+/** Lee un config.json (`~` vale HOME); no lo aplica. */
+const readConfigFile = async ($: EngineInterface, path: string): Promise<Loaded> => {
+  const full = expandHome(path, await $.env.get('HOME'))
+  if (full === null) return { error: `no se pudo resolver ${path}: falta HOME` }
+  const text = await $.fs.read(full).catch(() => null)
+  if (typeof text !== 'string') return { error: `no se pudo leer ${full}` }
+  const parsed = parseConfig(text)
+  return 'error' in parsed ? { error: `${full}: ${parsed.error}` } : { ...parsed, path: full }
+}
+
+const writeConfigFile = async ($: EngineInterface, path: string): Promise<string> => {
+  const full = expandHome(path, await $.env.get('HOME'))
+  if (full === null) throw new Error(`no se pudo resolver ${path}: falta HOME`)
+  await $.fs.write(full, exportConfig(settings))
+  return full
+}
+
+/**
+ * La primera vez en una máquina (sin nada guardado) la configuración sale de
+ * las opciones del mod: `configFile` si apunta a un config.json que se pueda
+ * leer, si no el preset elegido. Después manda lo que se guarda desde el panel.
+ */
+const seedSettings = async ($: EngineInterface, options: PluginOptions): Promise<Settings> => {
+  const file = typeof options.configFile === 'string' ? options.configFile.trim() : ''
+  if (file !== '') {
+    const loaded = await readConfigFile($, file)
+    if (!('error' in loaded)) return loaded.settings
+    $.ui.toast(`token-bar: ${loaded.error}`)
+  }
+  return isPreset(options.preset) ? applyPreset(readSettings(undefined), options.preset) : readSettings(undefined)
+}
+
+/** Aplica, guarda y redibuja; si cambió lo del repo, lo vuelve a leer. */
+const applyAndSave = async ($: EngineInterface, next: Settings) => {
+  const repoChanged = next.repoOn !== settings.repoOn
+  applySettings(next)
+  await saveSettings($)
+  if (repoChanged) await refreshRepo($, true)
+  await repaint($)
+}
+
+const CONFIG_HELP = [
+  `/token-bar-config export [ruta]   guarda la config en un JSON (por defecto ${DEFAULT_CONFIG_PATH}) y la copia`,
+  '/token-bar-config import [ruta]   lee ese JSON (o un JSON pegado a continuación) y lo aplica',
+  '/token-bar-config preset <minima|normal|completa>',
+  '/token-bar-config reset           vuelve a los valores por defecto',
+].join('\n')
+
+/** Los subcomandos de /token-bar-config; devuelve el texto que se muestra. */
+const runConfig = async ($: EngineInterface, args: string): Promise<string> => {
+  const trimmed = args.trim()
+  const sub = trimmed.split(/\s+/)[0] ?? ''
+  const arg = trimmed.slice(sub.length).trim()
+
+  if (sub === '' || sub === 'export') {
+    const path = await writeConfigFile($, arg === '' ? DEFAULT_CONFIG_PATH : arg)
+    const json = exportConfig(settings)
+    const copied = await $.ui.copy({ text: json }).catch(() => ({ isCopied: false }))
+    return `Config guardada en ${path}${copied.isCopied ? ' y copiada al portapapeles' : ''}.\n\n${json}`
+  }
+  if (sub === 'import') {
+    const loaded = arg.startsWith('{') ? parseConfig(arg) : await readConfigFile($, arg === '' ? DEFAULT_CONFIG_PATH : arg)
+    if ('error' in loaded) return `token-bar: ${loaded.error}`
+    await applyAndSave($, loaded.settings)
+    const ignored = loaded.ignored.length === 0 ? '' : ` Claves ignoradas: ${loaded.ignored.join(', ')}.`
+    return `Config importada y guardada.${ignored}`
+  }
+  if (sub === 'preset') {
+    if (!isPreset(arg)) return `token-bar: preset desconocido. Los hay: ${PRESET_NAMES.join(', ')}.`
+    await applyAndSave($, applyPreset(settings, arg))
+    return `Preset ${arg} aplicado.`
+  }
+  if (sub === 'reset') {
+    await applyAndSave($, readSettings(undefined))
+    return 'Config restablecida a los valores por defecto.'
+  }
+  return `Subcomandos de /token-bar-config:\n${CONFIG_HELP}`
+}
 
 /** Los valores de las barras: cada límite y el contexto. */
 const targets = (): [string, number][] => [
@@ -140,16 +225,21 @@ const targets = (): [string, number][] => [
 ]
 
 /** El valor animado de una barra; arranca en 0 para que se llene al abrir. */
-const shownPct = (key: string, pct: number): number => shown.get(key) ?? (shown.set(key, 0), 0)
+const shownPct = (key: string, pct: number): number => {
+  if (!settings.animations) return pct
+  return shown.get(key) ?? (shown.set(key, 0), 0)
+}
 
 /** Arriba de 90 % el porcentaje late (medio segundo encendido, medio atenuado). */
-const isPulseDim = (pct: number | undefined): boolean => pct !== undefined && pct >= 90 && Math.floor(frame / 5) % 2 === 1
+const isPulseDim = (pct: number | undefined): boolean =>
+  settings.animations && pct !== undefined && pct >= alertAt() && Math.floor(frame / 5) % 2 === 1
 
 /**
  * Un cuadro: avanza las barras hacia su valor y redibuja solo si algo se mueve
  * (un turno corriendo, una barra llenándose, un medidor al límite latiendo).
  */
 const tick = ($: EngineInterface) => {
+  if (!settings.animations) return
   frame += 1
   let isMoving = false
   for (const [key, pct] of targets()) {
@@ -161,7 +251,7 @@ const tick = ($: EngineInterface) => {
       isMoving = true
     }
   }
-  const isAlert = targets().some(([, pct]) => pct >= 90)
+  const isAlert = targets().some(([, pct]) => pct >= alertAt())
   // Clawd cambia de pose cada tantos ticks: se redibuja solo cuando cambia.
   const nextMascot = settings.bandOn && settings.mascotOn ? mascotFrame(frame, mood()).key : ''
   const isMascotMoving = nextMascot !== mascotKey
@@ -171,10 +261,13 @@ const tick = ($: EngineInterface) => {
 
 /** Cómo está Clawd: trabajando, al límite (el medidor más alto ≥90 %) o tranquilo. */
 const mood = (): Mood => {
-  const limits = (usage?.rateLimits ?? []).map(l => ({ label: labelFor(l.kind), pct: l.percentUsed }))
-  if (usage?.context.percent !== undefined) limits.push({ label: 'el contexto', pct: usage.context.percent })
+  // Un dato que el usuario ocultó no da alertas.
+  const limits = (usage?.rateLimits ?? [])
+    .filter(l => settings.show[limitKey(labelFor(l.kind))])
+    .map(l => ({ label: labelFor(l.kind), pct: l.percentUsed }))
+  if (settings.show.context && usage?.context.percent !== undefined) limits.push({ label: 'el contexto', pct: usage.context.percent })
   const top = limits.reduce<{ label: string; pct: number } | null>((a, b) => (a === null || b.pct > a.pct ? b : a), null)
-  return { isWorking, alert: top !== null && top.pct >= 90 ? top : null, maxPct: top?.pct ?? 0 }
+  return { isWorking, alert: top !== null && top.pct >= alertAt() ? top : null, maxPct: top?.pct ?? 0, isStill: !settings.animations }
 }
 
 const FX_COLOR: Record<Fx, string | undefined> = {
@@ -342,12 +435,15 @@ const CHANGE_TONE: Record<ChangeState, string | undefined> = {
   cerrado: 'error',
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
-    settings = readSettings(await $.store.get('settings'))
+    const stored = await $.store.get('settings')
+    applySettings(stored === undefined ? await seedSettings($, options) : readSettings(stored))
+    if (stored === undefined) await saveSettings($)
     counters = await loadCounters($)
     await $.command.register({ name: 'token-bar', description: 'Panel de consumo, límites, modelo y repo' })
     await $.command.register({ name: 'token-bar-debug', description: 'Datos crudos de token-bar para depurar' })
+    await $.command.register({ name: 'token-bar-config', description: 'Exportar, importar o cambiar la config de token-bar' })
     await refresh($)
     // git y gh pueden tardar: el inicio de la sesión no los espera.
     void refreshRepo($)
@@ -397,6 +493,14 @@ export const register: Register = on => {
     const opened = await $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })
 
     return { text: opened.isPlaced ? 'Panel de token-bar abierto (Esc cierra).' : `token-bar: el panel no se pudo ubicar (${opened.reason}).` }
+  })
+
+  on('command.run', { command: 'token-bar-config' }, async ($, e) => {
+    try {
+      return { text: await runConfig($, e.args) }
+    } catch (err) {
+      return { text: `token-bar: ${err instanceof Error ? err.message : String(err)}` }
+    }
   })
 
   on('command.run', { command: 'token-bar-debug' }, async ($, e) => {
@@ -450,16 +554,19 @@ export const register: Register = on => {
     // A la izquierda Clawd y su comentario (ancho fijo); luego una raya; el resto
     // es de los datos, que se miden con lo que sobra.
     const room = e.props.bodyColumns - (showMascot ? MASCOT_COLUMNS + 2 + SAY_WIDTH + 3 : 0)
-    const limits = sortLimits(usage?.rateLimits ?? [])
+    const show = settings.show
+    // Cada límite responde al interruptor de su familia (Sesión, Semana, Fable).
+    const limits = sortLimits(usage?.rateLimits ?? []).filter(l => show[limitKey(labelFor(l.kind))])
     const withSeps = (prefix: string, nodes: RenderChildren[]) =>
       nodes.flatMap((node, i) => (i === 0 ? [node] : [<Text key={`${prefix}-sep-${i}`} dimColor> │ </Text>, node]))
 
     // El modelo con un brillo que lo recorre mientras Claude trabaja.
     const brandOf = (modelText: string): RenderChildren => {
-      const glow = isWorking ? shimmerIndex(frame, modelText.length) : modelText.length
+      const isLive = isWorking && settings.animations
+      const glow = isLive ? shimmerIndex(frame, modelText.length) : modelText.length
       return (
         <Box key="brand" flexDirection="row">
-          <Text color={CLAUDE_ORANGE} bold>{isWorking ? sparkFrame(frame) : SPARK_IDLE} </Text>
+          <Text color={CLAUDE_ORANGE} bold>{isLive ? sparkFrame(frame) : SPARK_IDLE} </Text>
           <Text color={CLAUDE_ORANGE} bold>{modelText.slice(0, glow)}</Text>
           <Text color={CLAUDE_GLOW} bold>{modelText.slice(glow, glow + 1)}</Text>
           <Text color={CLAUDE_ORANGE} bold>{modelText.slice(glow + 1)}</Text>
@@ -469,7 +576,7 @@ export const register: Register = on => {
 
     // Fila de medidores, con el detalle que entre en `room`. Sin Clawd, el
     // modelo abre la fila; con Clawd, va a su lado.
-    const gaugesRow = (level: Level) => {
+    const gaugesRow = ([level, withResets]: readonly [Level, boolean]) => {
       const isCompact = level === 'compacta'
       const barWidth = level === 'completa' ? 10 : level === 'media' ? 6 : 0
 
@@ -477,7 +584,7 @@ export const register: Register = on => {
         const label = key === 'ctx' ? 'ctx' : isCompact ? shortLabelFor(kind) : labelFor(kind)
         const tone = pct === undefined ? undefined : toneFor(pct)
         const parts = lineBar(pct === undefined ? 0 : shownPct(key, pct), barWidth)
-        const reset = level === 'completa' && resetsAt !== undefined ? formatReset(resetsAt, now, offsetMin(resetsAt)) : ''
+        const reset = !isCompact && withResets && resetsAt !== undefined ? formatReset(resetsAt, now, offsetMin(resetsAt)) : ''
         const length = label.length + 1 + barWidth + (barWidth > 0 ? 1 : 0) + formatPct(pct).length + (reset === '' ? 0 : reset.length + 3)
         return [
           length,
@@ -493,15 +600,18 @@ export const register: Register = on => {
 
       const modelText = isCompact ? shortModel(formatModel(model)) : formatModel(model)
       const items: [number, RenderChildren][] = [
-        ...(showMascot ? [] : ([[2 + modelText.length, brandOf(modelText)]] as [number, RenderChildren][])),
-        ...(limits.length === 0
-          ? ['five_hour', 'seven_day'].map(kind => gauge(kind, kind, kindColor(kind), undefined))
+        ...(showMascot || !show.model ? [] : ([[2 + modelText.length, brandOf(modelText)]] as [number, RenderChildren][])),
+        ...((usage?.rateLimits.length ?? 0) === 0
+          ? [
+              ...(show.session ? [gauge('five_hour', 'five_hour', kindColor('five_hour'), undefined)] : []),
+              ...(show.week ? [gauge('seven_day', 'seven_day', kindColor('seven_day'), undefined)] : []),
+            ]
           : limits.map(l => gauge(l.kind, l.kind, kindColor(l.kind), l.percentUsed, l.resetsAt))),
-        gauge('ctx', 'ctx', CONTEXT_COLOR, usage?.context.percent),
+        ...(show.context ? [gauge('ctx', 'ctx', CONTEXT_COLOR, usage?.context.percent)] : []),
       ]
       return {
         level,
-        length: items.reduce((n, [len]) => n + len, 0) + 3 * (items.length - 1),
+        length: items.reduce((n, [len]) => n + len, 0) + 3 * Math.max(0, items.length - 1),
         node: (
           <Box key="band-gauges" flexDirection="row">
             {withSeps('gauges', items.map(([, node]) => node))}
@@ -509,14 +619,28 @@ export const register: Register = on => {
         ),
       }
     }
-    const levels: Level[] = settings.density === 'auto' ? ['completa', 'media', 'compacta'] : [settings.density]
-    const rows = levels.map(gaugesRow)
+    // Con `auto` se prefiere el más detallado que entra; la hora de reinicio es lo
+    // primero que se suelta, antes de achicar las barras o pasar a compacta.
+    const candidates: (readonly [Level, boolean])[] =
+      settings.density === 'auto'
+        ? [['completa', show.resets], ['media', show.resets], ['media', false], ['compacta', false]]
+        : [[settings.density, show.resets]]
+    const rows = candidates.map(gaugesRow)
     const top = rows.find(r => r.length <= room) ?? rows[rows.length - 1]!
 
     const t = addTokens(counters.main, counters.agents)
-    const repoText = settings.repoOn ? repoSummary(repo, top.level === 'compacta') : ''
+    const repoText = settings.repoOn
+      ? repoSummary(repo, top.level === 'compacta', {
+          branch: show.repoBranch,
+          sync: show.repoSync,
+          changes: show.repoChanges,
+          change: show.repoChange,
+          ci: show.repoCi,
+        })
+      : ''
     const details = [
-      <Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>,
+      ...(show.tokens ? [<Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>] : []),
+      ...(show.cost && usage?.cost !== undefined ? [<Text key="band-cost" dimColor>{formatUsd(usage.cost.usd)}</Text>] : []),
       ...(repoText === '' ? [] : [<Text key="band-repo" color="suggestion">{repoText}</Text>]),
       <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />,
     ]
@@ -552,8 +676,8 @@ export const register: Register = on => {
             ))}
           </Box>
           <Box key="clawd-text" flexDirection="column" flexShrink={0} width={SAY_WIDTH} marginLeft={2}>
-            {brandOf(formatModel(model))}
-            <Text key="clawd-say" color={FX_COLOR[clawd.fx] ?? CLAUDE_GLOW} italic wrap="truncate-end">{say}</Text>
+            {show.model ? brandOf(formatModel(model)) : <Text key="brand-off"> </Text>}
+            <Text key="clawd-say" color={FX_COLOR[clawd.fx] ?? CLAUDE_GLOW} italic wrap="truncate-end">{settings.clawdSay ? say : ' '}</Text>
           </Box>
           <Box key="band-rule" flexDirection="column" flexShrink={0}>
             {[0, 1].map(i => (
@@ -583,12 +707,9 @@ export const register: Register = on => {
       tab = next
       $.ui.invalidate('ui.render')
     }
-    const changeSettings = (change: Partial<Settings>) => async () => {
-      settings = { ...settings, ...change }
-      await saveSettings($)
-      if (change.repoOn !== undefined) await refreshRepo($, true)
-      await repaint($)
-    }
+    const changeSettings = (change: Partial<Settings>) => () => applyAndSave($, { ...settings, ...change })
+    const toggleShow = (key: ShowKey) => () => applyAndSave($, { ...settings, show: { ...settings.show, [key]: !settings.show[key] } })
+    const notify = (text: string) => $.ui.toast(text)
 
     const meter = (key: string, label: string, labelColor: string, pct: number | undefined, tail: string) => {
       const parts = lineBar(pct === undefined ? 0 : shownPct(key.replace(/^lim-/, ''), pct), barWidth)
@@ -755,8 +876,9 @@ export const register: Register = on => {
     })()
 
     const range = (i: number) => {
-      const min = USAGE_LEVELS[i]?.min ?? 0
-      const nextMin = USAGE_LEVELS[i + 1]?.min
+      const mins = currentLevelMins()
+      const min = mins[i] ?? 0
+      const nextMin = mins[i + 1]
       return nextMin === undefined ? `≥${min}%` : i === 0 ? `<${nextMin}%` : `${min}–${nextMin - 1}%`
     }
     const legendRow = (key: string, sign: string, text: string, color?: string) => (
@@ -793,6 +915,60 @@ export const register: Register = on => {
       </Box>
     )
 
+    const dot = (isOn: boolean) => (isOn ? '●' : '○')
+    const toggle = (key: string, label: string, isOn: boolean, onPress: () => unknown, hotkey?: string) => (
+      <Button key={key} plain hotkey={hotkey} dimColor={!isOn} label={`${dot(isOn)} ${label}`} onPress={onPress} />
+    )
+    const group = (title: string, items: RenderChildren[]) => (
+      <Box key={`group-${title}`} flexDirection="column" marginTop={1}>
+        <Text weight="semibold">{title}</Text>
+        <Box flexDirection="row" flexWrap="wrap" columnGap={3}>
+          {items}
+        </Box>
+      </Box>
+    )
+    const showToggles = (keys: readonly ShowKey[]) => keys.map(k => toggle(`show-${k}`, SHOW_LABELS[k], settings.show[k], toggleShow(k)))
+    const exportNow = async () => {
+      try {
+        const path = await writeConfigFile($, DEFAULT_CONFIG_PATH)
+        const copied = await $.ui.copy({ text: exportConfig(settings), surface: e.surface }).catch(() => ({ isCopied: false }))
+        notify(`Config guardada en ${path}${copied.isCopied ? ' y copiada' : ''}`)
+      } catch (err) {
+        notify(`token-bar: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    const importNow = async () => {
+      const loaded = await readConfigFile($, DEFAULT_CONFIG_PATH)
+      if ('error' in loaded) return notify(`token-bar: ${loaded.error}`)
+      await applyAndSave($, loaded.settings)
+      notify(`Config importada de ${loaded.path}`)
+    }
+    const infoTab = (
+      <Box flexDirection="column">
+        <Text dimColor>Qué se ve en la banda. Se guarda solo; los presets cambian varias cosas de una vez.</Text>
+        {group(
+          'Presets',
+          PRESET_NAMES.map((name, i) => <Button key={`preset-${name}`} plain hotkey={'zxc'[i]} label={name} onPress={() => applyAndSave($, applyPreset(settings, name))} />),
+        )}
+        {group('Medidores', showToggles(['model', 'session', 'week', 'fable', 'context']))}
+        {group('Datos', showToggles(['tokens', 'cost', 'resets']))}
+        {group('Repo', showToggles(['repoBranch', 'repoSync', 'repoChanges', 'repoChange', 'repoCi']))}
+        {group('Clawd y estilo', [
+          toggle('toggle-mascot', 'Clawd', settings.mascotOn, changeSettings({ mascotOn: !settings.mascotOn }), 'm'),
+          toggle('toggle-say', 'Comentarios', settings.clawdSay, changeSettings({ clawdSay: !settings.clawdSay }), 's'),
+          toggle('toggle-animations', 'Animaciones', settings.animations, changeSettings({ animations: !settings.animations }), 'n'),
+          <Button key="levels" plain hotkey="l" label={`Cortes de color: ${formatLevels(settings.levels)} %`} onPress={changeSettings({ levels: nextLevels(settings.levels) })} />,
+        ])}
+        {group('Configuración portable', [
+          <Button key="cfg-export" plain hotkey="e" label="Exportar" onPress={exportNow} />,
+          <Button key="cfg-import" plain hotkey="i" label="Importar" onPress={importNow} />,
+        ])}
+        <Box marginTop={1}>
+          <Text dimColor wrap="truncate-end">{DEFAULT_CONFIG_PATH} · también /token-bar-config</Text>
+        </Box>
+      </Box>
+    )
+
     const onOff = (isOn: boolean) => (isOn ? 'activada' : 'desactivada')
     const settingsTab = (
       <Box flexDirection="column">
@@ -805,7 +981,6 @@ export const register: Register = on => {
           label={`Densidad: ${settings.density} (barra: ${statusLevel})`}
           onPress={changeSettings({ density: nextDensity(settings.density) })}
         />
-        <Button key="toggle-mascot" plain hotkey="m" label={`Clawd en la banda: ${onOff(settings.mascotOn)}`} onPress={changeSettings({ mascotOn: !settings.mascotOn })} />
         <Button key="toggle-dots" plain hotkey="p" label={`Puntos de color en la barra: ${onOff(settings.dotsOn)}`} onPress={changeSettings({ dotsOn: !settings.dotsOn })} />
         <Button
           key="toggle-repo"
@@ -842,6 +1017,7 @@ export const register: Register = on => {
           <Button key="tab-settings" plain hotkey="3" label="Ajustes" dimColor={tab !== 'settings'} onPress={setTab('settings')} />
           <Button key="tab-repo" plain hotkey="4" label="Repo" dimColor={tab !== 'repo'} onPress={setTab('repo')} />
           <Button key="tab-legend" plain hotkey="5" label="Leyenda" dimColor={tab !== 'legend'} onPress={setTab('legend')} />
+          <Button key="tab-info" plain hotkey="6" label="Info" dimColor={tab !== 'info'} onPress={setTab('info')} />
           <Button key="refresh" plain hotkey="u" label="Refrescar" onPress={() => Promise.all([refresh($), refreshRepo($, true)])} />
           <Text dimColor>Esc cierra</Text>
         </Box>
@@ -851,6 +1027,7 @@ export const register: Register = on => {
           {tab === 'settings' && settingsTab}
           {tab === 'repo' && repoTab}
           {tab === 'legend' && legendTab}
+          {tab === 'info' && infoTab}
         </Box>
       </Box>
     )

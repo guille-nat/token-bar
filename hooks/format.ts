@@ -78,8 +78,16 @@ export const USAGE_LEVELS = [
 
 export type UsageLevel = (typeof USAGE_LEVELS)[number]
 
+/** Desde dónde es amarillo, naranja y rojo; configurable (ver config.ts). */
+let levelMins: readonly [number, number, number] = [50, 75, 90]
+export const setLevelMins = (mins: readonly [number, number, number]) => {
+  levelMins = mins
+}
+/** Los cuatro cortes: 0 y los tres configurables. */
+export const currentLevelMins = (): readonly number[] => [0, ...levelMins]
+
 export const usageLevel = (pct: number): UsageLevel =>
-  [...USAGE_LEVELS].reverse().find(l => pct >= l.min) ?? USAGE_LEVELS[0]
+  USAGE_LEVELS[pct >= levelMins[2] ? 3 : pct >= levelMins[1] ? 2 : pct >= levelMins[0] ? 1 : 0]
 
 /** Verde <50, amarillo 50–74, naranja 75–89, rojo ≥90. */
 export const toneFor = (pct: number): Tone => usageLevel(pct).tone

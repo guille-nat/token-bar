@@ -306,22 +306,26 @@ export const dirtyCount = (git: GitState): number => git.staged + git.unstaged +
 /** "una-rama-muy-larga" → "una-rama-mu…" si pasa de `max`. */
 export const clip = (s: string, max: number): string => (s.length <= max ? s : `${s.slice(0, max - 1)}…`)
 
+export type RepoShow = { branch?: boolean; sync?: boolean; changes?: boolean; change?: boolean; ci?: boolean }
+
 /**
  * El tramo del repo en la línea de estado:
  * compacta  "main ✓"
  * media/completa  "main ⇡2⇣1 ±3 #12 ✓" (⇡⇣ para no confundir con ↑↓ de tokens)
+ * Con `show`, solo las partes que valen true (sin `show`, todas).
  */
-export const repoSummary = (repo: RepoInfo | null | undefined, compact: boolean): string => {
+export const repoSummary = (repo: RepoInfo | null | undefined, compact: boolean, show: RepoShow = {}): string => {
   const git = repo?.git
   if (!repo || !git) return ''
-  const name = git.branch ?? git.sha?.slice(0, 7) ?? '?'
-  const ci = repo.forge?.ci ? CI_GLYPH[repo.forge.ci.state] : ''
-  if (compact) return [clip(name, 12), ci].filter(Boolean).join(' ')
+  const on = (k: keyof RepoShow) => show[k] !== false
+  const name = on('branch') ? clip(git.branch ?? git.sha?.slice(0, 7) ?? '?', compact ? 12 : 24) : ''
+  const ci = on('ci') && repo.forge?.ci ? CI_GLYPH[repo.forge.ci.state] : ''
+  if (compact) return [name, ci].filter(Boolean).join(' ')
 
-  const sync = `${git.ahead > 0 ? `⇡${git.ahead}` : ''}${git.behind > 0 ? `⇣${git.behind}` : ''}`
-  const dirty = dirtyCount(git) > 0 ? `±${dirtyCount(git)}` : ''
-  const change = repo.forge?.change ? changeRef(repo.remote?.forge ?? null, repo.forge.change.number) : ''
-  return [clip(name, 24), sync, dirty, change, ci].filter(Boolean).join(' ')
+  const sync = on('sync') ? `${git.ahead > 0 ? `⇡${git.ahead}` : ''}${git.behind > 0 ? `⇣${git.behind}` : ''}` : ''
+  const dirty = on('changes') && dirtyCount(git) > 0 ? `±${dirtyCount(git)}` : ''
+  const change = on('change') && repo.forge?.change ? changeRef(repo.remote?.forge ?? null, repo.forge.change.number) : ''
+  return [name, sync, dirty, change, ci].filter(Boolean).join(' ')
 }
 
 /** "hace 40 s", "hace 3 min", "hace 2 h". */
