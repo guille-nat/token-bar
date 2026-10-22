@@ -90,6 +90,7 @@ const stubEngine = (
     if (r === 'no instalado') return { deny: `${e.argv[0]}: not found` }
     return { value: { stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false, ...r } }
   })
+  on('session.cwd', () => ({ value: '/home/yo/workdir/notita' }))
   on('session.id', () => ({ value: 'sesion-de-prueba' }))
   on('session.start', () => ({ cwd: '/work' }))
   on('session.measure', ($, e) => ({ changed: e.changed }))
@@ -234,6 +235,8 @@ test('la banda está encendida por defecto, conserva la de otros mods y se apaga
   expect(await band.find({ type: 'Text', text: /Sesión/ })).toBeDefined()
   expect(await band.find({ type: 'Text', text: 'banda de otro mod' })).toBeDefined()
   expect(await band.find({ key: 'band-panel' })).toBeDefined()
+  // La ruta de trabajo, abreviada con ~.
+  expect(await band.find({ type: 'Text', text: '~/workdir/notita' })).toBeDefined()
   await band.unmount()
 
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
@@ -264,11 +267,11 @@ test('animaciones: el destello gira mientras trabaja y las barras se llenan', as
   const idle = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await idle.find({ type: 'Text', text: '✻ ' })).toBeDefined()
   // La barra arranca vacía y, unos cuadros después, llega a su valor.
-  expect(await idle.find({ type: 'Text', text: /^─+$/ })).toBeDefined()
+  expect(await idle.find({ type: 'Text', text: /^░+$/ })).toBeDefined()
   await idle.unmount()
   await clock.advance(3_000)
   const filled = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await filled.find({ type: 'Text', text: /^━+╸?$/ })).toBeDefined()
+  expect(await filled.find({ type: 'Text', text: /^█+$/ })).toBeDefined()
   await filled.unmount()
 
   const working = { ...BAND, surface: 'terminal', props: { ...BAND.props, isWorking: true } } as const
@@ -300,9 +303,14 @@ test('Clawd saluda en la banda, cambia de pose y se apaga en Ajustes', async ($,
   expect(await calm.find({ type: 'Text', text: /conviene dosificar|Hola|♪|zzz|hop/ })).toBeDefined()
   await calm.unmount()
 
+  // En angosto Clawd se queda arriba y los datos bajan; solo desaparece sin lugar para él.
   const narrow = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, bodyColumns: 50 } })
-  expect(await narrow.find({ key: 'clawd' })).toBeUndefined()
+  expect(await narrow.find({ key: 'clawd' })).toBeDefined()
   await narrow.unmount()
+
+  const tiny = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, bodyColumns: 36 } })
+  expect(await tiny.find({ key: 'clawd' })).toBeUndefined()
+  await tiny.unmount()
 
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
   await pane.press({ key: 'tab-info' })
@@ -566,7 +574,7 @@ test('animaciones apagadas: las barras llegan al instante y Clawd queda quieto',
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await band.find({ type: 'Text', text: /^━+╸?$/ })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: /^█+$/ })).toBeDefined()
   expect(await band.find({ type: 'Text', text: /¡Hola!/ })).toBeUndefined()
   await band.unmount()
   await clock.advance(5_000)

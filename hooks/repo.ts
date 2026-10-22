@@ -306,6 +306,12 @@ export const dirtyCount = (git: GitState): number => git.staged + git.unstaged +
 /** "una-rama-muy-larga" → "una-rama-mu…" si pasa de `max`. */
 export const clip = (s: string, max: number): string => (s.length <= max ? s : `${s.slice(0, max - 1)}…`)
 
+/** "/home/yo/workdir/app" → "~/workdir/app"; si pasa de `max`, conserva el final: "…/workdir/app". */
+export const formatPath = (path: string, home: string | null | undefined, max: number): string => {
+  const short = home && (path === home || path.startsWith(`${home}/`)) ? `~${path.slice(home.length)}` : path
+  return short.length <= max ? short : `…${short.slice(short.length - max + 1)}`
+}
+
 export type RepoShow = { branch?: boolean; sync?: boolean; changes?: boolean; change?: boolean; ci?: boolean }
 
 /**

@@ -4,6 +4,7 @@ import {
   formatAgo,
   formatBranch,
   formatChanges,
+  formatPath,
   formatCi,
   type GitState,
   githubVariables,
@@ -164,5 +165,17 @@ describe('textos', () => {
   test('la clave cambia con la rama, el commit o el push', () => {
     expect(gitKey(GIT)).not.toBe(gitKey({ ...GIT, ahead: 1 }))
     expect(gitKey(GIT)).toBe(gitKey({ ...GIT, unstaged: 5 }))
+  })
+})
+
+describe('formatPath', () => {
+  test('abrevia HOME con ~', () => {
+    expect(formatPath('/home/yo/workdir/notita', '/home/yo', 40)).toBe('~/workdir/notita')
+    expect(formatPath('/home/yo', '/home/yo', 40)).toBe('~')
+    expect(formatPath('/home/yoyo/x', '/home/yo', 40)).toBe('/home/yoyo/x')
+  })
+  test('sin HOME deja la ruta; si es larga conserva el final', () => {
+    expect(formatPath('/srv/app', null, 40)).toBe('/srv/app')
+    expect(formatPath('/home/yo/workdir/programming/notita', '/home/yo', 16)).toBe('…gramming/notita')
   })
 })

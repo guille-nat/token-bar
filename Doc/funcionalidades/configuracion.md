@@ -5,7 +5,7 @@
 Todo lo que la banda muestra se elige desde la pestaña **Info** del panel (`/token-bar`, tecla `6`), se guarda solo y se puede **exportar a un JSON** y **importar en otra máquina**.
 
 - **Presets** (`z`/`x`/`c`): `minima` (modelo, Sesión, Semana, ctx y rama; sin Clawd), `normal` (lo de siempre) y `completa` (todo, con costo y barras largas). Cambian varios interruptores de una vez; no tocan la línea de texto, los puntos ni la banda encendida/apagada.
-- **Interruptores:** Modelo, Sesión, Semana, Fable, Contexto · Tokens ↑↓, Costo, Hora de reinicio · Rama, Sync ⇡⇣, Cambios ±, PR/MR, CI · Clawd (`m`), Comentarios (`s`), Animaciones (`n`).
+- **Interruptores:** Modelo, Sesión, Semana, Fable, Contexto · Tokens ↑↓, Costo, Hora de reinicio, Ruta de trabajo · Rama, Sync ⇡⇣, Cambios ±, PR/MR, CI · Clawd (`m`), Comentarios (`s`), Animaciones (`n`).
 - **Cortes de color** (`l`): desde dónde es amarillo, naranja y rojo: `50/75/90` (por defecto), `60/80/95` o `40/65/85`. El rojo es también el umbral donde el % late y Clawd avisa.
 - **Exportar** (`e`) / **Importar** (`i`): guarda o lee `~/.config/token-bar/config.json`.
 - Un dato oculto no da alertas: si ocultás Fable, Clawd no avisa de Fable.
@@ -53,4 +53,5 @@ Un JSON hecho a mano puede traer solo algunos campos: lo que falta queda por def
 Para sumar un dato elegible: agregá su clave a `SHOW_KEYS`, `SHOW_LABELS` y `DEFAULT_SHOW` (`config.ts`), decidí en qué presets entra, y usalo con `settings.show.<clave>` en la banda. Tests: `tests/config.test.ts` (parte pura) y los de "Info" / "/token-bar-config" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-22: dato `cwd` (Ruta de trabajo): `$.session.cwd()` abreviada con `~`, en la fila de detalles de la banda; se lee en cada refresh.
 - 2026-10-22: versión inicial (pestaña Info, presets, export/import, `userConfig`).

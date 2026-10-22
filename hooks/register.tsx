@@ -38,6 +38,7 @@ import {
   hasFable,
   kindColor,
   labelFor,
+  barParts,
   lineBar,
   nextDensity,
   numericFields,
@@ -64,6 +65,7 @@ import {
   type ForgeData,
   formatAgo,
   formatBranch,
+  formatPath,
   formatChanges,
   formatCi,
   formatCount,
@@ -95,8 +97,8 @@ const REFRESH_MS = 30_000
 const FORGE_MS = 120_000
 /** Cuadro de las animaciones: destello, barrido del modelo y barras que se llenan. */
 const FRAME_MS = 100
-/** Por debajo de este ancho de banda, Clawd no entra junto a los medidores. */
-const MASCOT_MIN_COLUMNS = 72
+/** Por debajo de este ancho de banda, Clawd no entra ni con su comentario. */
+const MASCOT_MIN_COLUMNS = 40
 /** Ancho de la columna donde Clawd dice su comentario (y debajo del modelo). */
 const SAY_WIDTH = 28
 const MASCOT_COLUMNS = 9
@@ -112,6 +114,9 @@ let statusLevel: string = 'media'
 let lastTurnRaw: Record<string, number> | null = null
 let repo: RepoInfo | null = null
 let repoJob: Promise<void> | null = null
+/** Dónde trabaja la sesión (absoluta) y el HOME para abreviarla con `~`. */
+let cwd: string | null = null
+let home: string | null = null
 let frame = 0
 let isWorking = false
 let mascotKey = ''
@@ -270,6 +275,12 @@ const mood = (): Mood => {
   return { isWorking, alert: top !== null && top.pct >= alertAt() ? top : null, maxPct: top?.pct ?? 0, isStill: !settings.animations }
 }
 
+/** Colores de los datos de la banda, para que no se lean como un solo bloque gris. */
+const TOKENS_IN_COLOR = '#7DCFFF'
+const TOKENS_OUT_COLOR = '#9ECE6A'
+const COST_COLOR = '#E0AF68'
+const CWD_COLOR = '#BB9AF7'
+
 const FX_COLOR: Record<Fx, string | undefined> = {
   none: undefined,
   notes: CLAUDE_GLOW,
@@ -314,6 +325,8 @@ const refresh = async ($: EngineInterface) => {
   const [nextUsage, nextModel] = await Promise.all([$.session.usage(), $.session.model().catch(() => model)])
   usage = nextUsage
   model = nextModel
+  cwd = await $.session.cwd().catch(() => cwd)
+  home = (await $.env.get('HOME').catch(() => undefined)) ?? home
   await repaint($)
 }
 
@@ -550,15 +563,43 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const others = await next(e)
     const now = await $.clock.now()
+    let stacked = false
     const showMascot = settings.mascotOn && e.props.bodyColumns >= MASCOT_MIN_COLUMNS
     // A la izquierda Clawd y su comentario (ancho fijo); luego una raya; el resto
     // es de los datos, que se miden con lo que sobra.
-    const room = e.props.bodyColumns - (showMascot ? MASCOT_COLUMNS + 2 + SAY_WIDTH + 3 : 0)
+    const roomFor = (withMascot: boolean) => e.props.bodyColumns - (withMascot ? MASCOT_COLUMNS + 2 + SAY_WIDTH + 3 : 0)
     const show = settings.show
     // Cada límite responde al interruptor de su familia (Sesión, Semana, Fable).
     const limits = sortLimits(usage?.rateLimits ?? []).filter(l => show[limitKey(labelFor(l.kind))])
     const withSeps = (prefix: string, nodes: RenderChildren[]) =>
       nodes.flatMap((node, i) => (i === 0 ? [node] : [<Text key={`${prefix}-sep-${i}`} dimColor> │ </Text>, node]))
+
+    // Acomoda piezas de ancho conocido en líneas de a lo sumo `max` columnas, sin
+    // partir ninguna: lo que no entra baja a la línea siguiente.
+    const pack = (prefix: string, items: [number, RenderChildren][], max: number): RenderChildren => {
+      const lines: [number, RenderChildren][][] = [[]]
+      let used = 0
+      for (const item of items) {
+        const line = lines[lines.length - 1]!
+        const need = item[0] + (line.length === 0 ? 0 : 3)
+        if (line.length > 0 && used + need > max) {
+          lines.push([item])
+          used = item[0]
+        } else {
+          line.push(item)
+          used += need
+        }
+      }
+      return (
+        <Box key={`${prefix}-pack`} flexDirection="column">
+          {lines.map((line, i) => (
+            <Box key={`${prefix}-line-${i}`} flexDirection="row">
+              {withSeps(`${prefix}-${i}`, line.map(([, node]) => node))}
+            </Box>
+          ))}
+        </Box>
+      )
+    }
 
     // El modelo con un brillo que lo recorre mientras Claude trabaja.
     const brandOf = (modelText: string): RenderChildren => {
@@ -583,12 +624,12 @@ export const register: Register = (on, options) => {
       const gauge = (key: string, kind: string, labelColor: string, pct: number | undefined, resetsAt?: string): [number, RenderChildren] => {
         const label = key === 'ctx' ? 'ctx' : isCompact ? shortLabelFor(kind) : labelFor(kind)
         const tone = pct === undefined ? undefined : toneFor(pct)
-        const parts = lineBar(pct === undefined ? 0 : shownPct(key, pct), barWidth)
+        const parts = barParts(pct === undefined ? 0 : shownPct(key, pct), barWidth)
         const reset = !isCompact && withResets && resetsAt !== undefined ? formatReset(resetsAt, now, offsetMin(resetsAt)) : ''
         const length = label.length + 1 + barWidth + (barWidth > 0 ? 1 : 0) + formatPct(pct).length + (reset === '' ? 0 : reset.length + 3)
         return [
           length,
-          <Box key={`band-${key}`} flexDirection="row">
+          <Box key={`band-${key}`} flexDirection="row" flexShrink={0}>
             <Text color={labelColor}>{label} </Text>
             {barWidth > 0 && <Text color={tone}>{parts.filled}</Text>}
             {barWidth > 0 && <Text dimColor>{parts.empty}</Text>}
@@ -598,9 +639,7 @@ export const register: Register = (on, options) => {
         ]
       }
 
-      const modelText = isCompact ? shortModel(formatModel(model)) : formatModel(model)
       const items: [number, RenderChildren][] = [
-        ...(showMascot || !show.model ? [] : ([[2 + modelText.length, brandOf(modelText)]] as [number, RenderChildren][])),
         ...((usage?.rateLimits.length ?? 0) === 0
           ? [
               ...(show.session ? [gauge('five_hour', 'five_hour', kindColor('five_hour'), undefined)] : []),
@@ -612,11 +651,7 @@ export const register: Register = (on, options) => {
       return {
         level,
         length: items.reduce((n, [len]) => n + len, 0) + 3 * Math.max(0, items.length - 1),
-        node: (
-          <Box key="band-gauges" flexDirection="row">
-            {withSeps('gauges', items.map(([, node]) => node))}
-          </Box>
-        ),
+        node: pack('gauges', items, stacked ? e.props.bodyColumns : roomFor(showMascot)),
       }
     }
     // Con `auto` se prefiere el más detallado que entra; la hora de reinicio es lo
@@ -625,7 +660,14 @@ export const register: Register = (on, options) => {
       settings.density === 'auto'
         ? [['completa', show.resets], ['media', show.resets], ['media', false], ['compacta', false]]
         : [[settings.density, show.resets]]
-    const rows = candidates.map(gaugesRow)
+    let rows = candidates.map(gaugesRow)
+    // Si ni la fila más compacta entra al lado de Clawd, la terminal es angosta:
+    // Clawd queda arriba con su comentario y los datos van debajo, a todo el ancho.
+    if (showMascot && rows[rows.length - 1]!.length > roomFor(true)) {
+      stacked = true
+      rows = candidates.map(gaugesRow)
+    }
+    const room = stacked ? e.props.bodyColumns : roomFor(showMascot)
     const top = rows.find(r => r.length <= room) ?? rows[rows.length - 1]!
 
     const t = addTokens(counters.main, counters.agents)
@@ -638,25 +680,51 @@ export const register: Register = (on, options) => {
           ci: show.repoCi,
         })
       : ''
-    const details = [
-      ...(show.tokens ? [<Text key="band-tokens" dimColor>↑{formatTokens(totalInput(t))} ↓{formatTokens(t.output)}</Text>] : []),
-      ...(show.cost && usage?.cost !== undefined ? [<Text key="band-cost" dimColor>{formatUsd(usage.cost.usd)}</Text>] : []),
-      ...(repoText === '' ? [] : [<Text key="band-repo" color="suggestion">{repoText}</Text>]),
+    // Con Clawd, la ruta va debajo de él; sin Clawd, entre los detalles.
+    const cwdText = <Text key="band-cwd" color={CWD_COLOR}>{cwd === null ? '' : formatPath(cwd, home, top.level === 'compacta' ? 24 : 40)}</Text>
+    const repoSegments: [number, RenderChildren][] = repoText === '' ? [] : [[repoText.length, <Text key="band-repo" color="suggestion">{repoText}</Text>]]
+    const cwdLabel = cwd === null ? '' : formatPath(cwd, home, top.level === 'compacta' ? 24 : 40)
+    const usageItems: [number, RenderChildren][] = [
+      ...(show.tokens
+        ? ([[
+            formatTokens(totalInput(t)).length + formatTokens(t.output).length + 4,
+            <Box key="band-tokens" flexDirection="row" flexShrink={0}>
+              <Text color={TOKENS_IN_COLOR}>↑{formatTokens(totalInput(t))}</Text>
+              <Text color={TOKENS_OUT_COLOR}> ↓{formatTokens(t.output)}</Text>
+            </Box>,
+          ]] as [number, RenderChildren][])
+        : []),
+      ...(show.cost && usage?.cost !== undefined
+        ? ([[formatUsd(usage.cost.usd).length, <Text key="band-cost" color={COST_COLOR}>{formatUsd(usage.cost.usd)}</Text>]] as [number, RenderChildren][])
+        : []),
+    ]
+    const cwdItems: [number, RenderChildren][] = show.cwd && cwd !== null ? [[cwdLabel.length, cwdText]] : []
+    const panelItem: [number, RenderChildren] = [
+      8,
       <Button key="band-panel" plain dimColor hotkey="t" label="panel" onPress={() => $.ui.open({ id: PANE, title: 'Token bar', focus: true, closeOnEscape: true })} />,
     ]
+    const details = [...usageItems, ...repoSegments, panelItem]
     const info = (
       <Box key="band-info" flexDirection="column" flexShrink={1}>
         {top.node}
-        <Box key="band-details" flexDirection="row">
-          {withSeps('details', details)}
-        </Box>
+        {pack('details', details, room)}
       </Box>
     )
 
+    // Sin Clawd, tres líneas que agrupan por tema: qué corre (modelo, tokens,
+    // costo), cuánto queda (los límites) y dónde se trabaja (ruta, repo, panel).
     if (!showMascot) {
+      const modelText = top.level === 'compacta' ? shortModel(formatModel(model)) : formatModel(model)
+      const runItems: [number, RenderChildren][] = [
+        ...(show.model ? ([[2 + modelText.length, brandOf(modelText)]] as [number, RenderChildren][]) : []),
+        ...usageItems,
+      ]
+      const whereItems = [...cwdItems, ...repoSegments, panelItem]
       return (
         <Box flexDirection="column">
-          {info}
+          {runItems.length > 0 && pack('run', runItems, room)}
+          {top.node}
+          {pack('where', whereItems, room)}
           {others}
         </Box>
       )
@@ -679,13 +747,17 @@ export const register: Register = (on, options) => {
             {show.model ? brandOf(formatModel(model)) : <Text key="brand-off"> </Text>}
             <Text key="clawd-say" color={FX_COLOR[clawd.fx] ?? CLAUDE_GLOW} italic wrap="truncate-end">{settings.clawdSay ? say : ' '}</Text>
           </Box>
-          <Box key="band-rule" flexDirection="column" flexShrink={0}>
-            {[0, 1].map(i => (
-              <Text key={`rule-${i}`} dimColor> │ </Text>
-            ))}
-          </Box>
-          {info}
+          {!stacked && (
+            <Box key="band-rule" flexDirection="column" flexShrink={0}>
+              {[0, 1].map(i => (
+                <Text key={`rule-${i}`} dimColor> │ </Text>
+              ))}
+            </Box>
+          )}
+          {!stacked && info}
         </Box>
+        {show.cwd && cwd !== null && cwdText}
+        {stacked && info}
         {others}
       </Box>
     )
@@ -951,7 +1023,7 @@ export const register: Register = (on, options) => {
           PRESET_NAMES.map((name, i) => <Button key={`preset-${name}`} plain hotkey={'zxc'[i]} label={name} onPress={() => applyAndSave($, applyPreset(settings, name))} />),
         )}
         {group('Medidores', showToggles(['model', 'session', 'week', 'fable', 'context']))}
-        {group('Datos', showToggles(['tokens', 'cost', 'resets']))}
+        {group('Datos', showToggles(['tokens', 'cost', 'resets', 'cwd']))}
         {group('Repo', showToggles(['repoBranch', 'repoSync', 'repoChanges', 'repoChange', 'repoCi']))}
         {group('Clawd y estilo', [
           toggle('toggle-mascot', 'Clawd', settings.mascotOn, changeSettings({ mascotOn: !settings.mascotOn }), 'm'),
