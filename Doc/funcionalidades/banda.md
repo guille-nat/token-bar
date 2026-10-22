@@ -14,14 +14,14 @@ Una fila con colores reales sobre el prompt:
 - La densidad (`auto`, compacta, media, completa) sale del ancho de la banda (`levelFor`), igual que antes.
 
 ### Clawd, el bichito de Claude Code
-A la izquierda de los medidores, en 4 filas de medios bloques (`hooks/mascot.ts`), en bucle (~17 s por vuelta): saluda ("¡Hola!"), parpadea, mira a los costados, salta ("¡hop!"), baila con ♪ ♫ y se echa una siesta (zzz…). Al lado dice algo según el estado:
+A la izquierda de los medidores, en 2 filas de medios bloques (`hooks/mascot.ts`), en bucle (~17 s por vuelta): saluda ("¡Hola!"), parpadea, mira a los costados, salta ("¡hop!"), baila con ♪ ♫ y se echa una siesta (zzz…). Al lado dice algo según el estado:
 - **turno corriendo:** teclea con el destello de Claude girando sobre la cabeza ("trabajando…");
 - **un medidor ≥90 %:** un `!` rojo y "¡ojo! Semana al 93%";
 - **el más alto ≥75 %:** "conviene dosificar".
 
 Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 columnas. El reloj redibuja solo cuando cambia la pose (`key` del cuadro), no en cada tick.
 
-**Layout:** 3 filas. A la izquierda Clawd (3 filas) con, a su lado, el modelo y su comentario (`╰ trabajando…`, `╰ ¡Hola!`): van juntos para que se entienda que lo hace Claude. Esa columna tiene ancho fijo (`SAY_WIDTH`) y su fila de comentario siempre está reservada. Después, una raya vertical `│` (de 2 filas, las que tienen contenido) y los datos fijos: medidores, y debajo tokens + repo + `panel`. Como el comentario no comparte fila con los datos, estos no se mueven cuando Clawd habla. El efecto (♪, destello, `¡ojo!`) va como prefijo del comentario; Clawd ya no tiene fila de efectos, de ahí que sea 3 filas en vez de 4.
+**Layout:** 2 filas. A la izquierda Clawd (2 filas: cabeza y cuerpo con las patas como muesca) con, a su lado, el modelo y su comentario (`╰ trabajando…`, `╰ ¡Hola!`): van juntos para que se entienda que lo hace Claude. Esa columna tiene ancho fijo (`SAY_WIDTH`) y su fila de comentario siempre está reservada. Después, una raya vertical `│` (de 2 filas, las que tienen contenido) y los datos fijos: medidores, y debajo tokens + repo + `panel`. Como el comentario no comparte fila con los datos, estos no se mueven cuando Clawd habla. El efecto (♪, destello, `¡ojo!`) va como prefijo del comentario; Clawd ya no tiene fila de efectos ni de patas (las patas son la muesca del cuerpo): 2 filas en vez de 4.
 
 ## Cómo funciona
 - `ui.render` `AbovePrompt` en `hooks/register.tsx`; los helpers puros (`lineBar`, `sparkFrame`, `shimmerIndex`, `easeToward`) en `hooks/format.ts`.
@@ -42,6 +42,7 @@ Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 60 colum
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-22: Clawd de 2 filas. Las patas `▘▘ ▝▝` solo pintaban la mitad de arriba de su fila y estiraban la banda sin verse; ahora son la muesca del cuerpo. En una terminal la altura mínima es una fila: no hay 10 px.
 - 2026-10-22: Clawd de 3 filas; comentario junto a Clawd y datos separados por una raya.
 - 2026-10-22: los comentarios de Clawd pasan a una fila propia para que la info no se mueva.
 - 2026-10-22: Clawd animado en bucle, con frases según el estado.
