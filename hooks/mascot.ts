@@ -12,7 +12,7 @@ import { CLAUDE_GLOW, CLAUDE_ORANGE, sparkFrame } from './format'
 export const MASCOT_WIDTH = 11
 const BODY_WIDTH = 9
 
-export type Tone = 'clawd' | 'glow' | 'heart' | 'ok' | 'error' | 'sleep' | 'sweat' | 'gold' | 'violet' | 'shades' | 'shine'
+export type Tone = 'clawd' | 'glow' | 'heart' | 'ok' | 'error' | 'sleep' | 'sweat' | 'gold' | 'violet' | 'frame' | 'shine'
 
 /** Colores de cada tono: hex o nombres del tema. */
 export const TONE_COLOR: Record<Tone, string> = {
@@ -25,12 +25,12 @@ export const TONE_COLOR: Record<Tone, string> = {
   sweat: '#7DCFFF',
   gold: '#E0AF68',
   violet: '#BB9AF7',
-  shades: '#000000',
+  frame: '#565F89',
   shine: '#FFFFFF',
 }
 
-/** Un tramo de una fila con un solo color (y fondo, para los lentes). */
-export type Seg = { text: string; tone: Tone | null; bg?: Tone }
+/** Un tramo de una fila con un solo color. */
+export type Seg = { text: string; tone: Tone | null }
 
 export type MascotFrame = {
   /** Las 3 filas del lienzo, cada una de 11 columnas en tramos de color. */
@@ -145,12 +145,15 @@ const dance = (t: number): Pose =>
 
 // --- El lienzo y las partículas ---------------------------------------------
 
-/** `over`: se pinta encima del cuerpo (los lentes); si no, solo en los huecos. */
-type Particle = { r: number; c: number; ch: string; tone: Tone; bg?: Tone; over?: boolean }
+/**
+ * Una partícula va en un hueco del lienzo. Con `off`, va además encima del
+ * cuerpo (los lentes): `ch`/`tone` sobre la cara y `off` fuera de ella.
+ */
+type Particle = { r: number; c: number; ch: string; tone: Tone; off?: { ch: string; tone: Tone } }
 
 /** Arma las filas: el cuerpo corrido `shift` columnas y las partículas en los huecos. */
 const paint = (p: Pose, particles: readonly Particle[] = [], shift = 0): MascotFrame['rows'] => {
-  type Cell = { ch: string; tone: Tone | null; bg?: Tone }
+  type Cell = { ch: string; tone: Tone | null }
   const grid = [p.head, p.body, p.legs].map(row => {
     const cells: Cell[] = Array.from({ length: MASCOT_WIDTH }, () => ({ ch: ' ', tone: null }))
     ;[...row].slice(0, BODY_WIDTH).forEach((ch, i) => {
@@ -159,20 +162,20 @@ const paint = (p: Pose, particles: readonly Particle[] = [], shift = 0): MascotF
     })
     return cells
   })
-  for (const { r, c, ch, tone, bg, over } of particles) {
+  for (const { r, c, ch, tone, off } of particles) {
     const cell = grid[r]?.[c]
     if (cell === undefined) continue
-    // Encima del cuerpo, el fondo naranja solo donde hay cuerpo: fuera de él no pinta cuadrados.
-    if (over === true) grid[r]![c] = { ch, tone, ...(bg === 'clawd' && cell.ch === ' ' ? {} : bg === undefined ? {} : { bg }) }
-    else if (cell.ch === ' ') grid[r]![c] = { ch, tone }
+    if (cell.ch !== ' ') {
+      if (off !== undefined) grid[r]![c] = { ch, tone }
+    } else grid[r]![c] = off ?? { ch, tone }
   }
   const rows = grid.map(cells => {
     const segs: Seg[] = []
-    for (const { ch, tone, bg } of cells) {
+    for (const { ch, tone } of cells) {
       const last = segs[segs.length - 1]
-      // Los espacios sin fondo se pegan al tramo anterior: menos nodos para dibujar.
-      if (last !== undefined && last.bg === bg && (last.tone === tone || (ch === ' ' && bg === undefined))) last.text += ch
-      else segs.push({ text: ch, tone: ch === ' ' && bg === undefined ? null : tone, ...(bg === undefined ? {} : { bg }) })
+      // Los espacios se pegan al tramo anterior: menos nodos para dibujar.
+      if (last !== undefined && (last.tone === tone || ch === ' ')) last.text += ch
+      else segs.push({ text: ch, tone: ch === ' ' ? null : tone })
     }
     return segs
   })
@@ -243,21 +246,26 @@ const orbit = (t: number): Particle => {
 const sweat = (t: number): Particle => ({ r: Math.floor(t / 4) % 3, c: 0, ch: '°', tone: 'sweat' })
 
 /**
- * Los lentes pixelados de "deal with it": negros con el brillo blanco, sobre los
- * ojos. `at` es la columna del lienzo donde empiezan; en la cara, la 3.
+ * Los lentes pixelados de "deal with it". Sin colores de fondo (no todas las
+ * terminales los pintan igual): sobre la cara son huecos en el naranja, como
+ * los ojos, y se ven oscuros; fuera de ella, mientras entran, van en gris.
+ * Una banda en la mitad de abajo de la cabeza y dos cristales que bajan a la
+ * mitad de arriba del cuerpo, con el puente naranja en el medio. `at` es la
+ * columna del lienzo donde empiezan; en la cara, la 3.
  */
-const SHADES: readonly Omit<Particle, 'r' | 'c'>[] = [
-  { ch: '▘', tone: 'shine', bg: 'shades', over: true },
-  { ch: '▛', tone: 'shades', bg: 'clawd', over: true },
-  { ch: '▀', tone: 'shades', bg: 'clawd', over: true },
-  { ch: '▘', tone: 'shine', bg: 'shades', over: true },
-  { ch: '▛', tone: 'shades', bg: 'clawd', over: true },
+const SHADES: readonly { r: number; dc: number; face: string; off: string }[] = [
+  ...[0, 1, 2, 3, 4].map(dc => ({ r: 0, dc, face: '▀', off: '▄' })),
+  ...[0, 1, 3, 4].map(dc => ({ r: 1, dc, face: '▄', off: '▀' })),
 ]
 const SHADES_AT = 3
 const shades = (at = SHADES_AT): Particle[] =>
-  SHADES.map((p, k) => ({ ...p, r: 0, c: at + k })).filter(p => p.c >= 0 && p.c < MASCOT_WIDTH)
-/** Entran deslizándose desde la derecha y se calzan en la cara. */
-const shadesSliding = (t: number): Particle[] => shades(SHADES_AT + Math.max(0, 6 - t))
+  SHADES.map(({ r, dc, face, off }) => ({ r, c: at + dc, ch: face, tone: 'clawd' as const, off: { ch: off, tone: 'frame' as const } }))
+    .filter(p => p.c >= 0 && p.c < MASCOT_WIDTH)
+/** Entran deslizándose desde la derecha, se calzan en la cara y brillan. */
+const shadesSliding = (t: number): Particle[] => [
+  ...shades(SHADES_AT + Math.max(0, 6 - t)),
+  ...(t >= 6 && t < 14 ? [{ r: 0, c: 9, ch: t % 4 < 2 ? '✦' : '✧', tone: 'shine' as const }] : []),
+]
 
 const notes = (t: number): Particle[] =>
   Math.floor(t / 3) % 2 === 0 ? [{ r: 0, c: 10, ch: '♪', tone: 'glow' }] : [{ r: 0, c: 0, ch: '♫', tone: 'glow' }]
@@ -493,7 +501,7 @@ const workScene = (tick: number, mood: Mood): Scene => {
 }
 
 const keyOf = (f: Omit<MascotFrame, 'key'>): string =>
-  `${f.rows.map(r => r.map(s => `${s.tone ?? ''}:${s.bg ?? ''}:${s.text}`).join('|')).join('/')}#${f.mark}#${f.say ?? ''}#${f.sayTone}`
+  `${f.rows.map(r => r.map(s => `${s.tone ?? ''}:${s.text}`).join('|')).join('/')}#${f.mark}#${f.say ?? ''}#${f.sayTone}`
 
 const frameOf = (scene: Scene, say: string | null): MascotFrame => {
   const f = {

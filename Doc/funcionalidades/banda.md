@@ -24,7 +24,7 @@ A la izquierda de los medidores (`hooks/mascot.ts`), en un lienzo de 3 filas × 
 - **Clic sobre Clawd:** corazones ♥ y "¡jeje!". Muchos clics seguidos: "¡ya, ya! a trabajar".
 - **3 minutos sin nada:** se duerme (zzz que suben); lo próximo que pase lo despierta ("¡eh! ¡volviste!").
 - **En reposo:** parpadea, mira a los costados, salta, baila con ♪ ♫, se estira y cada tanto se pone los lentes.
-- **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Se dibujan con fondo por celda (`bg` del tramo) para que el negro se vea sobre el naranja.
+- **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Sin colores de fondo: sobre la cara son huecos en el naranja (como los ojos) y se ven oscuros; mientras entran, fuera de la cara, van en gris. Al calzarse brillan con un ✦.
 - **Un medidor ≥90 %:** un `!` rojo titila y dice "¡ojo! Semana al 93%". Desde 75 %: "conviene dosificar".
 
 Prioridad: reacción reciente > trabajando > alerta > te mira escribir > dormido > bucle en reposo. Con animaciones apagadas queda quieto, sin reacciones, pero sigue avisando de los límites.

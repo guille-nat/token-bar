@@ -67,14 +67,10 @@ describe('Clawd', () => {
 
   test('fachero: los lentes entran deslizándose y se calzan sobre los ojos', () => {
     const cool = { ...CALM, reaction: { kind: 'cool', at: 0, seed: 0 } } as const
+    // Dónde empieza la banda: el primer tramo naranja o gris hecho de medios bloques de abajo.
     const lensAt = (t: number) => {
-      const row = mascotFrame(t, cool).rows[0]
-      let col = 0
-      for (const s of row) {
-        if (s.bg === 'shades') return col
-        col += [...s.text].length
-      }
-      return -1
+      const row = [...mascotFrame(t, cool).rows[0].map(s => s.text).join('')]
+      return row.findIndex((ch, i) => (ch === '▀' || ch === '▄') && (row[i + 1] === '▀' || row[i + 1] === '▄'))
     }
     expect(lensAt(0)).toBeGreaterThan(lensAt(10))
     expect(lensAt(10)).toBe(3)
@@ -83,7 +79,7 @@ describe('Clawd', () => {
     expect(mascotFrame(0, cool).say).toBeNull()
     // En reposo también se los pone, y con el push.
     expect(new Set(Array.from({ length: LOOP_TICKS }, (_, t) => loopPose(t))).has('cool' as never)).toBe(true)
-    expect(mascotFrame(10, { ...CALM, reaction: { kind: 'push', at: 0, seed: 0 } }).rows[0].some(s => s.bg === 'shades')).toBe(true)
+    expect(text(mascotFrame(10, { ...CALM, reaction: { kind: 'push', at: 0, seed: 0 } })).split('\n')[0]).toContain('▀▀▀▀▀')
   })
 
   test('mientras escribís te sigue con los ojos; solo un rato después se duerme', () => {

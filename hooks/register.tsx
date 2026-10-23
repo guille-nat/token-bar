@@ -840,13 +840,7 @@ export const register: Register = (on, options) => {
             {clawd.rows.map((row, i) => (
               <Button key={`clawd-${i}`} plain onPress={pet}>
                 {row.map((seg, j) => (
-                  <Text
-                    key={`clawd-${i}-${j}`}
-                    color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}
-                    backgroundColor={seg.bg === undefined ? undefined : TONE_COLOR[seg.bg]}
-                  >
-                    {seg.text}
-                  </Text>
+<Text key={`clawd-${i}-${j}`} color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}>{seg.text}</Text>
                 ))}
               </Button>
             ))}
