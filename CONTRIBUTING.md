@@ -41,6 +41,7 @@ Los tres tienen que pasar.
 - **Barato en la terminal.** El reloj redibuja solo cuando cambia algo visible. Nada de trabajo pesado en cada tick.
 - **Tests para lo nuevo.** Un comportamiento nuevo trae su test, en el archivo de su módulo o en `tests/register.test.ts` si es de integración.
 - **Documentación.** Si cambiás una funcionalidad, actualizá su página en `Doc/funcionalidades/` (qué hace, cómo funciona, la decisión y por qué, y una línea en el historial) y el README si cambia algo que ve el usuario.
+- **Imágenes del README.** Si cambiás cómo se ve Clawd, regenerá `assets/*.svg` con `npx -y tsx scripts/readme-art.ts` (salen del código real de `mascot.ts`) y commitealas junto con el cambio.
 - **Commits** con [Conventional Commits](https://www.conventionalcommits.org/): `feat(clawd): …`, `fix(band): …`, `docs: …`.
 
 ## Dónde está cada cosa

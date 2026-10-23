@@ -1,10 +1,6 @@
 <div align="center">
 
-```
-   ▐▛███▜▌
-  ▝▜█████▛▘
-    ▘▘ ▝▝
-```
+<img src="assets/clawd.svg" width="260" alt="Clawd, el compañero de token-bar, saludando y poniéndose los lentes">
 
 # token-bar
 
@@ -15,6 +11,8 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-87%20pasando-9ECE6A?style=flat-square)
 ![GitHub y GitLab](https://img.shields.io/badge/GitHub%20%C2%B7%20GitLab-integrado-BB9AF7?style=flat-square)
+![Versión](https://img.shields.io/badge/versión-0.3.0-E0AF68?style=flat-square)
+![Licencia MIT](https://img.shields.io/badge/licencia-MIT-7DCFFF?style=flat-square)
 
 [Instalación](#-instalación) · [Qué hace](#-qué-hace) · [Clawd](#-clawd-tu-compañero-de-desarrollo) · [Panel](#-el-panel-token-bar) · [Configuración](#-configuración) · [FAQ](#-preguntas-frecuentes) · [Desarrollo](#-desarrollo)
 
@@ -22,15 +20,7 @@
 
 ---
 
-```
-  ▐▛███▛▌▝?  ✻ Opus 5.5                │ Sesión ━━━╸──── 23% ↻ 1:50 p. m.  Semana ━━━━━━╸─ 76%  ctx ━╸──── 12%
- ▝▜█████▛    ╰ ✳ pensando…             │ ↑12,3k ↓4,5k  US$ 0,42  ⎇ main ⇡2 ±3 #12 ✓   panel
-   ▘▘ ▝▝
- ~/workdir/mi-proyecto
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ >                                                                                                            │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-```
+<p align="center"><img src="assets/band.svg" alt="La banda de token-bar sobre el prompt de Claude Code: Clawd pensando, el modelo, los límites, los tokens, el costo y el repo"></p>
 
 > **En una línea:** token-bar es un *mod* de Claude Code que dibuja, arriba del prompt, cuánto te queda del plan (sesión, semana, contexto), cuántos tokens llevás, en qué modelo, rama, PR y CI estás, y a **Clawd**, un bichito animado que cuenta lo que está haciendo Claude, festeja tus tests y tus push, y se rasca la cabeza cuando piensa.
 
@@ -119,12 +109,7 @@ Clawd vive a la izquierda de la banda. No es decorado: **sabe lo que está pasan
 
 ### Mientras Claude trabaja, Clawd te cuenta qué hace
 
-```
-  ▐▛███▛▌▝?            ▐▛███▜▌                ▐▜███▜▌ ✶
- ▝▜█████▛     ·       ▗▜█████▛▘✻             ▝▜█████▛▘
-   ▘▘ ▝▝               ▘▘ ▝▝                  ▘▘ ▝▝
- ╰ pensando…          ╰ ✻ editando app.ts     ╰ ✶ leyendo README.md
-```
+<p align="center"><img src="assets/working.svg" alt="Clawd mientras Claude trabaja: se rasca la cabeza, teclea, lee y transpira en un turno largo"></p>
 
 | Cuando Claude… | Clawd… |
 | --- | --- |
@@ -142,12 +127,7 @@ Todo el tiempo el destello de Claude `✻` orbita a su alrededor.
 
 ### Cuando algo sale bien, o mal
 
-```
-  ▝▐▀███▀▌▘ ✦          ▄▀▀▀▀▀▀▀▄✧           ▐ ███ ▌
-   ▜█████▛ ·          ⇡▝▀▀▀█▀▀▀▘⇡          ▝▜█████▛▘
-   ▘▘ ▝▝  ✧              ▘▘ ▝▝                 ▘▘ ▝▝
- ╰ ✓ ¡tests en verde!  ╰ ⇡ ¡pusheado!       ╰ ✗ uy…
-```
+<p align="center"><img src="assets/reactions.svg" alt="Clawd festeja los tests y el push con lentes, se sacude con un error y festeja al terminar"></p>
 
 | Evento | Reacción |
 | --- | --- |
@@ -161,6 +141,8 @@ Todo el tiempo el destello de Claude `✻` orbita a su alrededor.
 | Lo frenás con Esc | "ok, freno" |
 
 ### Con vos
+
+<p align="center"><img src="assets/companion.svg" alt="Clawd con corazones al hacerle clic, con lentes tras tres clics, mirándote escribir y durmiendo"></p>
 
 | Vos… | Clawd… |
 | --- | --- |
@@ -331,10 +313,13 @@ claude plugin install token-bar@guille-nat --scope user
 hooks/
   register.tsx       eventos, comandos, banda y panel
   mascot.ts          Clawd: poses, partículas, reacciones (puro)
+  clawd-client.ts    región propia de Clawd: recibe los clics
   format.ts          barras, colores, horas, modelo, línea de estado (puro)
   config.ts          ajustes, presets, export/import (puro)
   repo.ts            git, GitHub y GitLab: parseo y textos (puro)
 tests/               unitarios por módulo e integración con el kit de Claude Code
+scripts/readme-art.ts  genera las imágenes de assets/ desde el código real de Clawd
+assets/              imágenes animadas del README (SVG)
 Doc/                 documentación técnica y decisiones de diseño
 ```
 
@@ -348,6 +333,6 @@ Los PRs son bienvenidos. Leé [CONTRIBUTING.md](CONTRIBUTING.md): cómo armar el
 
 <div align="center">
 
-Hecho con ✻ por [Guillermo Natali Ulla](https://github.com/guille-nat)
+Hecho con ✻ por [Guillermo Natali Ulla](https://github.com/guille-nat) · [Licencia MIT](LICENSE)
 
 </div>

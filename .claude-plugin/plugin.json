@@ -1,12 +1,13 @@
 {
   "name": "token-bar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Límites del plan, tokens, contexto, modelo y repo en una banda animada sobre el prompt, con Clawd como compañero de desarrollo. No gasta tokens.",
   "author": {
     "name": "Guillermo Natali Ulla"
   },
   "homepage": "https://github.com/guille-nat/token-bar",
   "repository": "https://github.com/guille-nat/token-bar",
+  "license": "MIT",
   "keywords": [
     "tokens",
     "rate-limits",

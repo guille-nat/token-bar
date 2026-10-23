@@ -44,11 +44,16 @@ hooks/config.ts                  ajustes, presets, export/import de la config (p
 hooks/repo.ts                    parseo puro de git status, remoto, respuestas de GitHub/GitLab y sus textos
 tests/*.test.ts                  unitarios por módulo e integración con el kit (register.test.ts)
 tsconfig.json                    para el editor / `tsc -p .` una vez que existan los tipos
-README.md                        guía de usuario
+README.md                        guía de usuario (imágenes en assets/)
+assets/*.svg                     imágenes animadas del README, generadas por scripts/readme-art.ts
+scripts/readme-art.ts            genera esas imágenes desde mascotFrame (npx -y tsx scripts/readme-art.ts)
+LICENSE                          MIT
 CONTRIBUTING.md                  guía de colaboradores
 ```
 
 ## Decisiones y por qué
+- **Decisión:** las imágenes del README son SVG animados generados desde `mascotFrame`, no arte en bloques de código.
+  **Por qué:** GitHub dibuja los medios bloques de un bloque de código en blanco y desalineados; un SVG con píxeles y colores se ve igual que en la terminal y no se desfasa del código.
 - **Decisión:** el formateo vive en funciones puras en `format.ts`.
   **Por qué:** requisito del usuario; además permite testear horas, barras y niveles sin montar UI.
 - **Decisión:** repo público, `main` protegida (PR con aprobación del dueño por CODEOWNERS; el dueño puede pushear directo).

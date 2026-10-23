@@ -120,7 +120,8 @@ const EYES = {
   right: ' ▐▜███▜▌ ',
   happy: ' ▐▀███▀▌ ',
   sad: ' ▐▄███▄▌ ',
-  wide: ' ▐ ███ ▌ ',
+  // Ojos altos (media celda de ancho, toda la altura): sorprendido.
+  wide: ' ▐▌███▐▌ ',
 }
 const BODY = '▝▜█████▛▘'
 const LEGS = '  ▘▘ ▝▝  '
