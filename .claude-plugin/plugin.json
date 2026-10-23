@@ -1,15 +1,32 @@
 {
   "name": "token-bar",
   "version": "0.2.0",
-  "description": "Barra y panel de consumo de tokens y límites del plan",
-  "author": { "name": "Guillermo Natali Ulla" },
+  "description": "Límites del plan, tokens, contexto, modelo y repo en una banda animada sobre el prompt, con Clawd como compañero de desarrollo. No gasta tokens.",
+  "author": {
+    "name": "Guillermo Natali Ulla"
+  },
+  "homepage": "https://github.com/guille-nat/token-bar",
+  "repository": "https://github.com/guille-nat/token-bar",
+  "keywords": [
+    "tokens",
+    "rate-limits",
+    "statusline",
+    "git",
+    "github",
+    "gitlab",
+    "mascot"
+  ],
   "userConfig": {
     "preset": {
       "type": "string",
       "title": "Preset inicial",
       "description": "Qué se muestra la primera vez en esta máquina: minima, normal o completa. Después se cambia desde /token-bar (pestaña Info).",
       "default": "normal",
-      "options": ["minima", "normal", "completa"]
+      "options": [
+        "minima",
+        "normal",
+        "completa"
+      ]
     },
     "configFile": {
       "type": "string",

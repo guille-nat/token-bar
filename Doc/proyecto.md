@@ -1,7 +1,9 @@
 # token-bar
-> Última actualización: 2026-10-19
+> Última actualización: 2026-10-23
 
-Mod de Claude Code (feature "mods", probado en 2.1.303) que muestra el consumo de tokens, los límites del plan, el modelo en uso y el estado del repo (git, GitHub/GitLab): una línea bajo el prompt, un panel interactivo (`/token-bar`), una banda opcional sobre el prompt y un comando de depuración (`/token-bar-debug`).
+Mod de Claude Code (feature "mods", probado en 2.1.303) que muestra el consumo de tokens, los límites del plan, el modelo en uso y el estado del repo (git, GitHub/GitLab): una banda animada sobre el prompt con Clawd como compañero de desarrollo (vista por defecto), un panel interactivo (`/token-bar`), una línea de texto opcional bajo el prompt, la config exportable (`/token-bar-config`) y un comando de depuración (`/token-bar-debug`). No gasta tokens: no llama a modelos ni agrega contexto.
+
+La guía para usuarios es el [README.md](../README.md) de la raíz; la de colaboradores, [CONTRIBUTING.md](../CONTRIBUTING.md). Esta carpeta es la documentación técnica.
 
 ## Cómo usarlo
 
@@ -29,25 +31,31 @@ claude plugin test ~/workdir/token-bar           # tests (sin sesión ni red)
 ## Estructura
 
 ```
-.claude-plugin/plugin.json   manifiesto
+.claude-plugin/plugin.json       manifiesto y userConfig (preset y archivo de config iniciales)
 .claude-plugin/marketplace.json  marketplace local/GitHub (una entrada: este mismo repo)
-.claude-plugin/types/        tipos que escribe el engine al cargar el mod (ignorado por git)
-hooks/hooks.json             apunta al módulo
-hooks/register.tsx           hooks: eventos, comandos, dibujo
-hooks/format.ts              formateo puro (barras, %, niveles de color, modelo, horas es-AR, línea de estado)
-hooks/repo.ts                parseo puro de git status, remoto, respuestas de GitHub/GitLab y sus textos
-tests/format.test.ts         unit tests de format.ts
-tests/repo.test.ts           unit tests de repo.ts
-tests/register.test.ts       integración con el kit: stubs de session.usage/model/repo y process.run, panel, banda, barra
-tsconfig.json                para el editor / `tsc -p .` una vez que existan los tipos
+.claude-plugin/types/            tipos que escribe el engine al cargar el mod (ignorado por git)
+.github/CODEOWNERS               todo PR necesita la aprobación del dueño
+hooks/hooks.json                 apunta al módulo
+hooks/register.tsx               hooks: eventos, comandos, banda, panel y lo que vive Clawd
+hooks/mascot.ts                  Clawd puro: poses, partículas, reacciones, activityOf/outcomeOf
+hooks/format.ts                  formateo puro (barras, %, niveles de color, modelo, horas es-AR, línea de estado)
+hooks/config.ts                  ajustes, presets, export/import de la config (puro)
+hooks/repo.ts                    parseo puro de git status, remoto, respuestas de GitHub/GitLab y sus textos
+tests/*.test.ts                  unitarios por módulo e integración con el kit (register.test.ts)
+tsconfig.json                    para el editor / `tsc -p .` una vez que existan los tipos
+README.md                        guía de usuario
+CONTRIBUTING.md                  guía de colaboradores
 ```
 
 ## Decisiones y por qué
 - **Decisión:** el formateo vive en funciones puras en `format.ts`.
   **Por qué:** requisito del usuario; además permite testear horas, barras y niveles sin montar UI.
+- **Decisión:** repo público, `main` protegida (PR con aprobación del dueño por CODEOWNERS; el dueño puede pushear directo).
+  **Por qué:** pedido del usuario al publicarlo: que solo él acepte cambios.
 - **Decisión:** TypeScript, etiquetas en español.
   **Por qué:** requisito del usuario.
 
 ## Historial
+- 2026-10-23: repo público; README pensado para usuarios y CONTRIBUTING.md.
 - 2026-10-19: versión inicial.
 - 2026-10-19: modelo, niveles de color con leyenda y datos del repo.
