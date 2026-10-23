@@ -839,7 +839,11 @@ export const register: Register = (on, options) => {
             {clawd.rows.map((row, i) => (
               <Box key={`clawd-${i}`} flexDirection="row">
                 {row.map((seg, j) => (
-                  <Text key={`clawd-${i}-${j}`} color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}>
+                  <Text
+                    key={`clawd-${i}-${j}`}
+                    color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}
+                    backgroundColor={seg.bg === undefined ? undefined : TONE_COLOR[seg.bg]}
+                  >
                     {seg.text}
                   </Text>
                 ))}

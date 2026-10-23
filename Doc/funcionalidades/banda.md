@@ -25,7 +25,7 @@ A la izquierda de los medidores (`hooks/mascot.ts`), en un lienzo de 3 filas × 
 - **Clic en el comentario de Clawd** (`╰ …`, al lado del dibujo; cuando no dice nada se ve un `╰ ♡` tenue para tocar): corazones ♥ y "¡jeje!". Muchos clics seguidos: "¡ya, ya! a trabajar".
 - **3 minutos sin nada:** se duerme (zzz que suben); lo próximo que pase lo despierta ("¡eh! ¡volviste!").
 - **En reposo:** parpadea, mira a los costados, salta, baila con ♪ ♫, se estira y cada tanto se pone los lentes.
-- **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Sin colores de fondo: sobre la cara son huecos en el naranja (como los ojos) y se ven oscuros; ocupan toda la fila de la cabeza, como en el emoji, con un brillo blanco en diagonal (▞) en cada cristal (una celda de terminal tiene solo dos colores, así que el brillo necesita una celda entera oscura). Mientras entran, fuera de la cara, van en gris. Al calzarse destellan con un ✦.
+- **Fachero:** los lentes de "deal with it" caen desde arriba y se calzan sobre los ojos: "deal with it", "todo bajo control". Son pixel art con medios bloques: cada celda son 2 píxeles verticales (el carácter `▀` con su color arriba y el fondo de la celda abajo), así la cara lleva tres colores como el emoji: frente naranja, banda negra con un brillo blanco por cristal, y los cristales con el puente naranja en el medio (`SHADES_PX`, `putShades`). Al calzarse destellan con un ✦.
 - **Un medidor ≥90 %:** un `!` rojo titila y dice "¡ojo! Semana al 93%". Desde 75 %: "conviene dosificar".
 
 Prioridad: reacción reciente > trabajando > alerta > te mira escribir > dormido > bucle en reposo. Con animaciones apagadas queda quieto, sin reacciones, pero sigue avisando de los límites.
@@ -60,6 +60,7 @@ Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 40 colum
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-23: lentes como pixel art de medios bloques (color del carácter + fondo), fieles al emoji, y caen desde arriba.
 - 2026-10-23: el clic para acariciar a Clawd pasa al comentario: sobre el dibujo, el resaltado del puntero dejaba bloques blancos.
 - 2026-10-23: Clawd fachero: lentes de "deal with it" en reposo, al pushear y tras un turno largo.
 - 2026-10-23: Clawd compañero de desarrollo: reacciona a herramientas, tests, commits, push, errores, al prompt y a clics; partículas de color y siesta tras 3 min.

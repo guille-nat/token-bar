@@ -72,18 +72,24 @@ describe('Clawd', () => {
     expect(mascotFrame(0, { ...CALM, reaction: { kind: 'pet', at: 0, seed: 9 } }).say).toMatch(/ya|gastar|insistente/)
   })
 
-  test('fachero: los lentes entran deslizándose y se calzan sobre los ojos', () => {
+  test('fachero: los lentes caen, se calzan sobre los ojos y brillan', () => {
     const cool = { ...CALM, reaction: { kind: 'cool', at: 0, seed: 0 } } as const
-    // Dónde está el primer brillo de los lentes.
-    const lensAt = (t: number) => [...mascotFrame(t, cool).rows[0].map(s => s.text).join('')].indexOf('▞')
-    expect(lensAt(0)).toBeGreaterThan(lensAt(10))
-    expect(lensAt(10)).toBe(3)
-    expect(lensAt(20)).toBe(3)
+    const tones = (t: number, r: 0 | 1) => mascotFrame(t, cool).rows[r].flatMap(s => [s.tone, s.bg])
+    // Ya calzados: banda negra con brillo blanco en la cabeza, sobre la frente naranja,
+    // y los cristales en el cuerpo.
+    const head = mascotFrame(10, cool).rows[0]
+    expect(head.some(s => s.tone === 'clawd' && s.bg === 'shades')).toBe(true)
+    expect(tones(10, 0)).toContain('shine')
+    expect(tones(10, 1)).toContain('shades')
+    expect(tones(10, 1)).toContain('shine')
+    // Mientras caen todavía no llegaron al cuerpo.
+    expect(tones(0, 1)).not.toContain('shades')
+    expect(text(mascotFrame(0, cool))).not.toBe(text(mascotFrame(10, cool)))
     expect(mascotFrame(10, cool).say).toBe('deal with it')
     expect(mascotFrame(0, cool).say).toBeNull()
     // En reposo también se los pone, y con el push.
     expect(new Set(Array.from({ length: LOOP_TICKS }, (_, t) => loopPose(t))).has('cool' as never)).toBe(true)
-    expect(text(mascotFrame(10, { ...CALM, reaction: { kind: 'push', at: 0, seed: 0 } })).split('\n')[0]).toContain('▞  ▞')
+    expect(mascotFrame(10, { ...CALM, reaction: { kind: 'push', at: 0, seed: 0 } }).rows[0].some(s => s.bg === 'shades')).toBe(true)
   })
 
   test('mientras escribís te sigue con los ojos; solo un rato después se duerme', () => {

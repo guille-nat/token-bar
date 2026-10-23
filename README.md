@@ -143,8 +143,8 @@ Todo el tiempo el destello de Claude `✻` orbita a su alrededor.
 ### Cuando algo sale bien, o mal
 
 ```
-  ▝▐▀███▀▌▘ ✦           ▐▞  ▞ ▌✧            ▐ ███ ▌
-   ▜█████▛ ·          ⇡▝▜▄▄█▄▄▛▘⇡          ▝▜█████▛▘
+  ▝▐▀███▀▌▘ ✦          ▄▀▀▀▀▀▀▀▄✧           ▐ ███ ▌
+   ▜█████▛ ·          ⇡▝▀▀▀█▀▀▀▘⇡          ▝▜█████▛▘
    ▘▘ ▝▝  ✧              ▘▘ ▝▝                 ▘▘ ▝▝
  ╰ ✓ ¡tests en verde!  ╰ ⇡ ¡pusheado!       ╰ ✗ uy…
 ```
