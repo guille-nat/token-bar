@@ -835,19 +835,29 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row">
-          {/* Clawd entero es un botón: un clic lo acaricia. */}
           <Box key="clawd" flexDirection="column" flexShrink={0}>
             {clawd.rows.map((row, i) => (
-              <Button key={`clawd-${i}`} plain onPress={pet}>
+              <Box key={`clawd-${i}`} flexDirection="row">
                 {row.map((seg, j) => (
-<Text key={`clawd-${i}-${j}`} color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}>{seg.text}</Text>
+                  <Text key={`clawd-${i}-${j}`} color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}>
+                    {seg.text}
+                  </Text>
                 ))}
-              </Button>
+              </Box>
             ))}
           </Box>
           <Box key="clawd-text" flexDirection="column" flexShrink={0} width={SAY_WIDTH} marginLeft={1}>
             {show.model ? brandOf(formatModel(model)) : <Text key="brand-off"> </Text>}
-            <Text key="clawd-say" color={TONE_COLOR[clawd.sayTone]} italic wrap="truncate-end">{settings.clawdSay ? say : ' '}</Text>
+            {/* El clic va en el comentario y no en Clawd: un botón se invierte
+                bajo el puntero, y sobre el dibujo quedaban bloques blancos. */}
+            <Button key="clawd-pet" plain onPress={pet}>
+              {/* Sin nada que decir, un ♡ tenue: siempre hay algo para tocar. */}
+              {clawd.say === null || !settings.clawdSay ? (
+                <Text dimColor>╰ ♡</Text>
+              ) : (
+                <Text color={TONE_COLOR[clawd.sayTone]} italic wrap="truncate-end">{say}</Text>
+              )}
+            </Button>
           </Box>
           {!stacked && (
             <Box key="band-rule" flexDirection="column" flexShrink={0}>

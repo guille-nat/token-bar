@@ -22,7 +22,7 @@ A la izquierda de los medidores (`hooks/mascot.ts`), en un lienzo de 3 filas × 
 - **Mientras trabaja:** dice qué hace según la herramienta (`activityOf`): "leyendo register.tsx", "editando mascot.ts", "buscando «foo»", "corriendo npm", "git push…", "mirando docs.github.com", "ayudante: …". Si lee o busca mueve los ojos; si edita o corre comandos teclea; el destello de Claude orbita alrededor. Pasados 90 s transpira y cada tanto lo comenta ("esto viene largo…").
 - **Cuando termina una herramienta** (`outcomeOf`): tests que pasan → confeti y "¡tests en verde!"; tests que fallan → triste; `git commit` → "¡commit hecho!"; `git push` → se pone los lentes de "deal with it", flechas ⇡ y "¡pusheado!"; cualquier otro error → se sacude ("uy…").
 - **Al terminar el turno:** festeja con confeti ("¡listo!"); si el turno duró más de 1 minuto, se pone los lentes; si lo frenaste, "ok, freno"; si falló, triste.
-- **Clic sobre Clawd:** corazones ♥ y "¡jeje!". Muchos clics seguidos: "¡ya, ya! a trabajar".
+- **Clic en el comentario de Clawd** (`╰ …`, al lado del dibujo; cuando no dice nada se ve un `╰ ♡` tenue para tocar): corazones ♥ y "¡jeje!". Muchos clics seguidos: "¡ya, ya! a trabajar".
 - **3 minutos sin nada:** se duerme (zzz que suben); lo próximo que pase lo despierta ("¡eh! ¡volviste!").
 - **En reposo:** parpadea, mira a los costados, salta, baila con ♪ ♫, se estira y cada tanto se pone los lentes.
 - **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Sin colores de fondo: sobre la cara son huecos en el naranja (como los ojos) y se ven oscuros; ocupan toda la fila de la cabeza, como en el emoji, con un brillo blanco en diagonal (▞) en cada cristal (una celda de terminal tiene solo dos colores, así que el brillo necesita una celda entera oscura). Mientras entran, fuera de la cara, van en gris. Al calzarse destellan con un ✦.
@@ -32,7 +32,7 @@ Prioridad: reacción reciente > trabajando > alerta > te mira escribir > dormido
 
 Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 40 columnas. El reloj redibuja solo cuando cambia el cuadro (`key`), no en cada tick.
 
-**Eventos que escucha** (`hooks/register.tsx`): `session.start` (saludo), `prompt.edit` y `prompt.submit` (te mira, salta), `turn.start` y `turn.complete` (empieza a trabajar, festeja), `tool.call` (qué hace y cómo salió; nunca cambia la llamada y, si algo de Clawd fallara, la herramienta corre igual). Cada fila de Clawd es un `Button` para el clic.
+**Eventos que escucha** (`hooks/register.tsx`): `session.start` (saludo), `prompt.edit` y `prompt.submit` (te mira, salta), `turn.start` y `turn.complete` (empieza a trabajar, festeja), `tool.call` (qué hace y cómo salió; nunca cambia la llamada y, si algo de Clawd fallara, la herramienta corre igual). El comentario es un `Button` para el clic; Clawd no, porque el engine invierte bajo el puntero las celdas de un botón y sobre el dibujo quedaban bloques blancos.
 
 **Layout:** 3 filas. A la izquierda Clawd (3 filas, 11 columnas) con, a su lado, el modelo y su comentario (`╰ trabajando…`, `╰ ¡Hola!`): van juntos para que se entienda que lo hace Claude. Esa columna tiene ancho fijo (`SAY_WIDTH`) y su fila de comentario siempre está reservada. Después, una raya vertical `│` (de 2 filas, las que tienen contenido) y los datos fijos: medidores, y debajo tokens + repo + `panel`. Como el comentario no comparte fila con los datos, estos no se mueven cuando Clawd habla. El efecto (♪, destello, `¡ojo!`) va como prefijo del comentario; Clawd ya no tiene fila de efectos, de ahí que sea 3 filas en vez de 4.
 
@@ -60,6 +60,7 @@ Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 40 colum
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-23: el clic para acariciar a Clawd pasa al comentario: sobre el dibujo, el resaltado del puntero dejaba bloques blancos.
 - 2026-10-23: Clawd fachero: lentes de "deal with it" en reposo, al pushear y tras un turno largo.
 - 2026-10-23: Clawd compañero de desarrollo: reacciona a herramientas, tests, commits, push, errores, al prompt y a clics; partículas de color y siesta tras 3 min.
 - 2026-10-22: Clawd de 3 filas; comentario junto a Clawd y datos separados por una raya.

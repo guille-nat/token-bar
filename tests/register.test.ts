@@ -530,7 +530,7 @@ test('Clawd compañero: festeja los tests, lamenta un error y se pone contento c
   expect(await oops.find({ type: 'Text', text: /uy|falló|no anduvo|otra/ })).toBeDefined()
 
   await clock.advance(4_000)
-  await oops.press({ key: 'clawd-1' })
+  await oops.press({ key: 'clawd-pet' })
   await oops.unmount()
   const petted = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await petted.find({ type: 'Text', text: /♥/ })).toBeDefined()
