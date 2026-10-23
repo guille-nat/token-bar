@@ -304,7 +304,6 @@ const greeting = (hour: number | undefined): string => {
 
 const PHRASES = {
   pet: ['¡jeje!', '¡gracias!', '¡me hacés cosquillas!', 'prr…', '¡otra vez!'],
-  petMuch: ['¡ya, ya! a trabajar', 'me vas a gastar', 'bueno, sos insistente'],
   submit: ['¡a darle!', '¡vamos!', 'dale, me pongo', '¡manos a la obra!'],
   done: ['¡listo!', '¡terminé!', 'ahí lo tenés', '¡hecho!'],
   abort: ['ok, freno', 'listo, paro', 'frené'],
@@ -461,7 +460,7 @@ const reactionScene = (r: Reaction, t: number): Scene => {
         pose: t % 4 < 2 ? pose(EYES.happy) : crouch(EYES.happy),
         particles: hearts(t),
         mark: '♥',
-        say: pick(r.seed >= 8 ? PHRASES.petMuch : PHRASES.pet, r.seed),
+        say: pick(PHRASES.pet, r.seed),
         sayTone: 'heart',
       }
     case 'submit':

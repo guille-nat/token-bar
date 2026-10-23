@@ -37,6 +37,7 @@ claude plugin test ~/workdir/token-bar           # tests (sin sesión ni red)
 .github/CODEOWNERS               todo PR necesita la aprobación del dueño
 hooks/hooks.json                 apunta al módulo
 hooks/register.tsx               hooks: eventos, comandos, banda, panel y lo que vive Clawd
+hooks/clawd-client.ts            región propia de Clawd (Client): recibe los clics sin invertir celdas
 hooks/mascot.ts                  Clawd puro: poses, partículas, reacciones, activityOf/outcomeOf
 hooks/format.ts                  formateo puro (barras, %, niveles de color, modelo, horas es-AR, línea de estado)
 hooks/config.ts                  ajustes, presets, export/import de la config (puro)

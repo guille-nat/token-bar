@@ -66,7 +66,9 @@ import {
   type ReactionKind,
   SLEEP_AFTER,
   TONE_COLOR,
+  type Seg,
 } from './mascot'
+import type { ClawdProps, ClawdSeg } from './clawd-client'
 import {
   type ChangeState,
   changeLabel,
@@ -311,6 +313,13 @@ const TOKENS_OUT_COLOR = '#9ECE6A'
 const COST_COLOR = '#E0AF68'
 const CWD_COLOR = '#BB9AF7'
 
+/** Un tramo de Clawd con los colores resueltos, para su región propia. */
+const clawdSeg = (seg: Seg): ClawdSeg => ({
+  t: seg.text,
+  ...(seg.tone === null ? {} : { c: TONE_COLOR[seg.tone] }),
+  ...(seg.bg === undefined ? {} : { b: TONE_COLOR[seg.bg] }),
+})
+
 /** Algo pasó: si estaba dormido se despierta, y no se duerme hasta un rato después. */
 const touch = () => {
   if (settings.animations && !isWorking && frame - lastActive >= SLEEP_AFTER) react('wake')
@@ -323,11 +332,17 @@ const react = (kind: ReactionKind, extra: Partial<Reaction> = {}) => {
   reaction = { kind, at: frame, seed: reactionSeed++, ...extra }
 }
 
-/** Un clic sobre Clawd: se pone contento; muchos seguidos, se queja. */
+/** Clics seguidos (cada uno a menos de 1,5 s del anterior) que hacen falta para los lentes. */
+const TAPS_FOR_SHADES = 3
+
+/** Un clic sobre Clawd: corazones; varios seguidos, se pone los lentes. */
 const pet = () => {
-  pets = frame - pets.at < 100 ? { count: pets.count + 1, at: frame } : { count: 0, at: frame }
+  pets = frame - pets.at < 15 ? { count: pets.count + 1, at: frame } : { count: 1, at: frame }
   touch()
-  react('pet', { seed: pets.count })
+  if (pets.count >= TAPS_FOR_SHADES) {
+    pets = { count: 0, at: -Infinity }
+    react('cool')
+  } else react('pet')
 }
 
 const saveCounters = async ($: EngineInterface) =>
@@ -564,6 +579,13 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // Los clics sobre Clawd llegan desde su región (clawd-client.ts).
+  on('ui.message', async ($, e, next) => {
+    if (e.element === 'clawd') pet()
+
+    return next(e)
+  })
+
   on('prompt.submit', async ($, e, next) => {
     touch()
     typing = null
@@ -657,7 +679,10 @@ export const register: Register = (on, options) => {
     isWorking = e.props.isWorking
     if (!settings.bandOn || e.props.hasSurvey) return next(e)
 
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button } = elements
+    // Solo la terminal (y el desktop) tienen Client; en el resto Clawd va en Text.
+    const Client = 'Client' in elements ? elements.Client : undefined
     const others = await next(e)
     const now = await $.clock.now()
     let stacked = false
@@ -835,33 +860,36 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row">
-          <Box key="clawd" flexDirection="column" flexShrink={0}>
-            {clawd.rows.map((row, i) => (
-              <Box key={`clawd-${i}`} flexDirection="row">
-                {row.map((seg, j) => (
-                  <Text
-                    key={`clawd-${i}-${j}`}
-                    color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}
-                    backgroundColor={seg.bg === undefined ? undefined : TONE_COLOR[seg.bg]}
-                  >
-                    {seg.text}
-                  </Text>
-                ))}
-              </Box>
-            ))}
-          </Box>
+          {/* En la terminal, Clawd va en una región propia (Client): un clic llega
+              sin que el engine invierta las celdas, como pasa con un Button. */}
+          {Client !== undefined ? (
+            <Client
+              key="clawd"
+              module="./clawd-client.ts"
+              width={MASCOT_COLUMNS}
+              height={3}
+              props={{ rows: clawd.rows.map(row => row.map(seg => clawdSeg(seg))) } satisfies ClawdProps}
+            />
+          ) : (
+            <Box key="clawd" flexDirection="column" flexShrink={0}>
+              {clawd.rows.map((row, i) => (
+                <Box key={`clawd-${i}`} flexDirection="row">
+                  {row.map((seg, j) => (
+                    <Text
+                      key={`clawd-${i}-${j}`}
+                      color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}
+                      backgroundColor={seg.bg === undefined ? undefined : TONE_COLOR[seg.bg]}
+                    >
+                      {seg.text}
+                    </Text>
+                  ))}
+                </Box>
+              ))}
+            </Box>
+          )}
           <Box key="clawd-text" flexDirection="column" flexShrink={0} width={SAY_WIDTH} marginLeft={1}>
             {show.model ? brandOf(formatModel(model)) : <Text key="brand-off"> </Text>}
-            {/* El clic va en el comentario y no en Clawd: un botón se invierte
-                bajo el puntero, y sobre el dibujo quedaban bloques blancos. */}
-            <Button key="clawd-pet" plain onPress={pet}>
-              {/* Sin nada que decir, un ♡ tenue: siempre hay algo para tocar. */}
-              {clawd.say === null || !settings.clawdSay ? (
-                <Text dimColor>╰ ♡</Text>
-              ) : (
-                <Text color={TONE_COLOR[clawd.sayTone]} italic wrap="truncate-end">{say}</Text>
-              )}
-            </Button>
+            <Text key="clawd-say" color={TONE_COLOR[clawd.sayTone]} italic wrap="truncate-end">{settings.clawdSay ? say : ' '}</Text>
           </Box>
           {!stacked && (
             <Box key="band-rule" flexDirection="column" flexShrink={0}>

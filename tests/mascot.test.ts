@@ -63,13 +63,12 @@ describe('Clawd', () => {
     expect(text(mascotFrame(0, { ...WORKING, workTicks: 1_000 }))).toContain('°')
   })
 
-  test('festeja con confeti, se pone contento con caricias y se queja si son muchas', () => {
+  test('festeja con confeti y se pone contento con caricias', () => {
     const done = mascotFrame(0, { ...CALM, reaction: { kind: 'done', at: 0, seed: 0 } })
     expect(done.say).toBe('¡listo!')
     expect(done.rows.flat().some(s => s.tone !== 'clawd' && s.tone !== null)).toBe(true)
     const pet = mascotFrame(0, { ...CALM, reaction: { kind: 'pet', at: 0, seed: 0 } })
     expect(text(pet)).toContain('♥')
-    expect(mascotFrame(0, { ...CALM, reaction: { kind: 'pet', at: 0, seed: 9 } }).say).toMatch(/ya|gastar|insistente/)
   })
 
   test('fachero: los lentes caen, se calzan sobre los ojos y brillan', () => {

@@ -48,7 +48,8 @@ Los tres tienen que pasar.
 | Quiero cambiar… | Archivo |
 | --- | --- |
 | Una pose, partícula o reacción de Clawd | `hooks/mascot.ts` (y `activityOf`/`outcomeOf` para qué dispara qué) |
-| Qué eventos escucha Clawd | `hooks/register.tsx`: `turn.start`, `tool.call`, `prompt.edit`, `prompt.submit`, `turn.complete` |
+| Qué eventos escucha Clawd | `hooks/register.tsx`: `turn.start`, `tool.call`, `prompt.edit`, `prompt.submit`, `turn.complete`, `ui.message` (clics) |
+| El clic sobre Clawd | `hooks/clawd-client.ts` (su región propia, `Client`) |
 | Barras, colores, horas o el nombre del modelo | `hooks/format.ts` |
 | Ajustes, presets o el formato de la config | `hooks/config.ts` |
 | Datos de git, GitHub o GitLab | `hooks/repo.ts` |

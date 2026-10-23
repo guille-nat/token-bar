@@ -529,12 +529,22 @@ test('Clawd compañero: festeja los tests, lamenta un error y se pone contento c
   const oops = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await oops.find({ type: 'Text', text: /uy|falló|no anduvo|otra/ })).toBeDefined()
 
+  // Un clic sobre el dibujo: corazones. Clawd va en su propia región (Client)
+  // para que el clic no invierta las celdas.
   await clock.advance(4_000)
-  await oops.press({ key: 'clawd-pet' })
+  await oops.pointer({ type: 'down', x: 5, y: 1, button: 'left' })
   await oops.unmount()
   const petted = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await petted.find({ type: 'Text', text: /♥/ })).toBeDefined()
+  expect(await petted.find({ type: 'Text', text: /♥/, in: 'clawd' })).toBeDefined()
+
+  // Tres clics seguidos: se pone los lentes.
+  await clock.advance(4_000)
+  for (let i = 0; i < 3; i++) await petted.pointer({ type: 'down', x: 5, y: 1, button: 'left' })
   await petted.unmount()
+  await clock.advance(1_000)
+  const cool = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await cool.find({ type: 'Text', text: /deal with it|bajo control|lo tengo|estilo|fachero/ })).toBeDefined()
+  await cool.unmount()
 
   // Tres minutos sin nada y se duerme.
   await clock.advance(200_000)

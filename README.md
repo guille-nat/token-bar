@@ -167,7 +167,8 @@ Todo el tiempo el destello de Claude `✻` orbita a su alrededor.
 | abrís una sesión | te saluda según la hora: "¡Hola! ¡buen día!", "¿noche de código?" |
 | escribís en el prompt | **te sigue con los ojos** mientras tipeás: "te leo…" |
 | mandás el prompt | se agacha y salta: "¡a darle!" |
-| hacés **clic** en su comentario (`╰ …`) | se pone contento y le salen corazones ♥: "¡jeje!" (si insistís mucho: "¡ya, ya! a trabajar") |
+| le hacés **clic** | se pone contento y le salen corazones ♥: "¡jeje!" |
+| le hacés **tres clics seguidos** | **se pone los lentes de *deal with it*** |
 | lo dejás solo 3 minutos | se duerme con zzz que suben, y se despierta con lo próximo que pase: "¡eh! ¡volviste!" |
 
 En reposo parpadea, mira a los costados, salta, baila con ♪ ♫, se estira y cada tanto se pone los lentes. Si un límite pasa el 90 %, le titila un `!` rojo y te dice cuál: **"¡ojo! Semana al 93%"**.
