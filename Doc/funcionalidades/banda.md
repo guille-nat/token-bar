@@ -19,11 +19,12 @@ A la izquierda de los medidores (`hooks/mascot.ts`), en un lienzo de 3 filas × 
 - **Al abrir:** saluda según la hora ("¡Hola! ¡buen día!", "¿noche de código?").
 - **Mientras escribís:** te sigue con los ojos ("te leo…"). Al mandar el prompt salta ("¡a darle!").
 - **Mientras trabaja:** dice qué hace según la herramienta (`activityOf`): "leyendo register.tsx", "editando mascot.ts", "buscando «foo»", "corriendo npm", "git push…", "mirando docs.github.com", "ayudante: …". Si lee o busca mueve los ojos; si edita o corre comandos teclea; el destello de Claude orbita alrededor. Pasados 90 s transpira y cada tanto lo comenta ("esto viene largo…").
-- **Cuando termina una herramienta** (`outcomeOf`): tests que pasan → confeti y "¡tests en verde!"; tests que fallan → triste; `git commit` → "¡commit hecho!"; `git push` → flechas ⇡ y "¡pusheado!"; cualquier otro error → se sacude ("uy…").
-- **Al terminar el turno:** festeja con confeti ("¡listo!"); si lo frenaste, "ok, freno"; si falló, triste.
+- **Cuando termina una herramienta** (`outcomeOf`): tests que pasan → confeti y "¡tests en verde!"; tests que fallan → triste; `git commit` → "¡commit hecho!"; `git push` → se pone los lentes de "deal with it", flechas ⇡ y "¡pusheado!"; cualquier otro error → se sacude ("uy…").
+- **Al terminar el turno:** festeja con confeti ("¡listo!"); si el turno duró más de 1 minuto, se pone los lentes; si lo frenaste, "ok, freno"; si falló, triste.
 - **Clic sobre Clawd:** corazones ♥ y "¡jeje!". Muchos clics seguidos: "¡ya, ya! a trabajar".
 - **3 minutos sin nada:** se duerme (zzz que suben); lo próximo que pase lo despierta ("¡eh! ¡volviste!").
-- **En reposo:** parpadea, mira a los costados, salta, baila con ♪ ♫ y se estira.
+- **En reposo:** parpadea, mira a los costados, salta, baila con ♪ ♫, se estira y cada tanto se pone los lentes.
+- **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Se dibujan con fondo por celda (`bg` del tramo) para que el negro se vea sobre el naranja.
 - **Un medidor ≥90 %:** un `!` rojo titila y dice "¡ojo! Semana al 93%". Desde 75 %: "conviene dosificar".
 
 Prioridad: reacción reciente > trabajando > alerta > te mira escribir > dormido > bucle en reposo. Con animaciones apagadas queda quieto, sin reacciones, pero sigue avisando de los límites.
@@ -58,6 +59,7 @@ Se apaga con `m` en Ajustes y se esconde sola si la banda mide menos de 40 colum
 Colores en `CLAUDE_ORANGE`/`CLAUDE_GLOW`, cuadros en `SPARK_FRAMES`, velocidad en `FRAME_MS` y `easeToward`. Tests: "animaciones…", "la banda está encendida por defecto…" y "ajustes de antes de v2…" en `tests/register.test.ts`.
 
 ## Historial
+- 2026-10-23: Clawd fachero: lentes de "deal with it" en reposo, al pushear y tras un turno largo.
 - 2026-10-23: Clawd compañero de desarrollo: reacciona a herramientas, tests, commits, push, errores, al prompt y a clics; partículas de color y siesta tras 3 min.
 - 2026-10-22: Clawd de 3 filas; comentario junto a Clawd y datos separados por una raya.
 - 2026-10-22: los comentarios de Clawd pasan a una fila propia para que la info no se mueva.

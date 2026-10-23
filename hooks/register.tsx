@@ -578,7 +578,9 @@ export const register: Register = (on, options) => {
       lastActive = frame
       // Si no se dijo nada más fuerte (un test, un push) en el último segundo, reacciona al final.
       const isFresh = reaction !== null && frame - reaction.at < 10 && reaction.kind !== 'submit'
-      if (!isFresh) react(e.reason === 'answer' ? 'done' : e.reason === 'aborted' ? 'abort' : 'fail')
+      // Un turno largo que salió bien merece los lentes.
+      const won = frame - workStart >= 600 ? 'cool' : 'done'
+      if (!isFresh) react(e.reason === 'answer' ? won : e.reason === 'aborted' ? 'abort' : 'fail')
     }
     lastTurnRaw = numericFields(e)
     if (e.usage !== undefined) {
@@ -838,7 +840,13 @@ export const register: Register = (on, options) => {
             {clawd.rows.map((row, i) => (
               <Button key={`clawd-${i}`} plain onPress={pet}>
                 {row.map((seg, j) => (
-                  <Text key={`clawd-${i}-${j}`} color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}>{seg.text}</Text>
+                  <Text
+                    key={`clawd-${i}-${j}`}
+                    color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}
+                    backgroundColor={seg.bg === undefined ? undefined : TONE_COLOR[seg.bg]}
+                  >
+                    {seg.text}
+                  </Text>
                 ))}
               </Button>
             ))}

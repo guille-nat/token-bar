@@ -12,7 +12,7 @@ import { CLAUDE_GLOW, CLAUDE_ORANGE, sparkFrame } from './format'
 export const MASCOT_WIDTH = 11
 const BODY_WIDTH = 9
 
-export type Tone = 'clawd' | 'glow' | 'heart' | 'ok' | 'error' | 'sleep' | 'sweat' | 'gold' | 'violet'
+export type Tone = 'clawd' | 'glow' | 'heart' | 'ok' | 'error' | 'sleep' | 'sweat' | 'gold' | 'violet' | 'shades' | 'shine'
 
 /** Colores de cada tono: hex o nombres del tema. */
 export const TONE_COLOR: Record<Tone, string> = {
@@ -25,10 +25,12 @@ export const TONE_COLOR: Record<Tone, string> = {
   sweat: '#7DCFFF',
   gold: '#E0AF68',
   violet: '#BB9AF7',
+  shades: '#000000',
+  shine: '#FFFFFF',
 }
 
-/** Un tramo de una fila con un solo color. */
-export type Seg = { text: string; tone: Tone | null }
+/** Un tramo de una fila con un solo color (y fondo, para los lentes). */
+export type Seg = { text: string; tone: Tone | null; bg?: Tone }
 
 export type MascotFrame = {
   /** Las 3 filas del lienzo, cada una de 11 columnas en tramos de color. */
@@ -60,6 +62,7 @@ export type ReactionKind =
   | 'commit'
   | 'push'
   | 'wake'
+  | 'cool'
 
 /** Algo que pasó: dura unos ticks desde `at`. `seed` elige la frase. */
 export type Reaction = { kind: ReactionKind; at: number; seed: number; hour?: number }
@@ -104,6 +107,7 @@ export const REACTION_TICKS: Record<ReactionKind, number> = {
   commit: 25,
   push: 30,
   wake: 15,
+  cool: 40,
 }
 
 // --- El cuerpo -------------------------------------------------------------
@@ -141,29 +145,34 @@ const dance = (t: number): Pose =>
 
 // --- El lienzo y las partículas ---------------------------------------------
 
-type Particle = { r: number; c: number; ch: string; tone: Tone }
+/** `over`: se pinta encima del cuerpo (los lentes); si no, solo en los huecos. */
+type Particle = { r: number; c: number; ch: string; tone: Tone; bg?: Tone; over?: boolean }
 
 /** Arma las filas: el cuerpo corrido `shift` columnas y las partículas en los huecos. */
 const paint = (p: Pose, particles: readonly Particle[] = [], shift = 0): MascotFrame['rows'] => {
+  type Cell = { ch: string; tone: Tone | null; bg?: Tone }
   const grid = [p.head, p.body, p.legs].map(row => {
-    const cells: { ch: string; tone: Tone | null }[] = Array.from({ length: MASCOT_WIDTH }, () => ({ ch: ' ', tone: null }))
+    const cells: Cell[] = Array.from({ length: MASCOT_WIDTH }, () => ({ ch: ' ', tone: null }))
     ;[...row].slice(0, BODY_WIDTH).forEach((ch, i) => {
       const c = 1 + shift + i
       if (c >= 0 && c < MASCOT_WIDTH && ch !== ' ') cells[c] = { ch, tone: 'clawd' }
     })
     return cells
   })
-  for (const { r, c, ch, tone } of particles) {
+  for (const { r, c, ch, tone, bg, over } of particles) {
     const cell = grid[r]?.[c]
-    if (cell !== undefined && cell.ch === ' ') grid[r]![c] = { ch, tone }
+    if (cell === undefined) continue
+    // Encima del cuerpo, el fondo naranja solo donde hay cuerpo: fuera de él no pinta cuadrados.
+    if (over === true) grid[r]![c] = { ch, tone, ...(bg === 'clawd' && cell.ch === ' ' ? {} : bg === undefined ? {} : { bg }) }
+    else if (cell.ch === ' ') grid[r]![c] = { ch, tone }
   }
   const rows = grid.map(cells => {
     const segs: Seg[] = []
-    for (const { ch, tone } of cells) {
+    for (const { ch, tone, bg } of cells) {
       const last = segs[segs.length - 1]
-      // Los espacios se pegan al tramo anterior: menos nodos para dibujar.
-      if (last !== undefined && (last.tone === tone || ch === ' ')) last.text += ch
-      else segs.push({ text: ch, tone: ch === ' ' ? null : tone })
+      // Los espacios sin fondo se pegan al tramo anterior: menos nodos para dibujar.
+      if (last !== undefined && last.bg === bg && (last.tone === tone || (ch === ' ' && bg === undefined))) last.text += ch
+      else segs.push({ text: ch, tone: ch === ' ' && bg === undefined ? null : tone, ...(bg === undefined ? {} : { bg }) })
     }
     return segs
   })
@@ -233,6 +242,23 @@ const orbit = (t: number): Particle => {
 /** Una gota de sudor que cae por la izquierda. */
 const sweat = (t: number): Particle => ({ r: Math.floor(t / 4) % 3, c: 0, ch: '°', tone: 'sweat' })
 
+/**
+ * Los lentes pixelados de "deal with it": negros con el brillo blanco, sobre los
+ * ojos. `at` es la columna del lienzo donde empiezan; en la cara, la 3.
+ */
+const SHADES: readonly Omit<Particle, 'r' | 'c'>[] = [
+  { ch: '▘', tone: 'shine', bg: 'shades', over: true },
+  { ch: '▛', tone: 'shades', bg: 'clawd', over: true },
+  { ch: '▀', tone: 'shades', bg: 'clawd', over: true },
+  { ch: '▘', tone: 'shine', bg: 'shades', over: true },
+  { ch: '▛', tone: 'shades', bg: 'clawd', over: true },
+]
+const SHADES_AT = 3
+const shades = (at = SHADES_AT): Particle[] =>
+  SHADES.map((p, k) => ({ ...p, r: 0, c: at + k })).filter(p => p.c >= 0 && p.c < MASCOT_WIDTH)
+/** Entran deslizándose desde la derecha y se calzan en la cara. */
+const shadesSliding = (t: number): Particle[] => shades(SHADES_AT + Math.max(0, 6 - t))
+
 const notes = (t: number): Particle[] =>
   Math.floor(t / 3) % 2 === 0 ? [{ r: 0, c: 10, ch: '♪', tone: 'glow' }] : [{ r: 0, c: 0, ch: '♫', tone: 'glow' }]
 
@@ -258,6 +284,7 @@ const PHRASES = {
   oops: ['uy…', 'mmm, falló', 'eso no anduvo', 'probemos otra'],
   long: ['esto viene largo…', 'sigo en eso…', 'ya casi…', 'paciencia…'],
   watch: ['te leo…', 'ajá…', 'mhm…'],
+  cool: ['deal with it', 'todo bajo control', 'tranqui, lo tengo', 'con estilo', 'fachero, ¿no?'],
 } as const
 
 const sayOf = (a: Activity): string => {
@@ -336,7 +363,7 @@ export const outcomeOf = (tool: string, input: Record<string, unknown>, isError:
 
 // --- El bucle en reposo ---------------------------------------------------------
 
-type IdleStep = 'base' | 'blink' | 'lookLeft' | 'lookRight' | 'crouch' | 'jump' | 'dance' | 'stretch'
+type IdleStep = 'base' | 'blink' | 'lookLeft' | 'lookRight' | 'crouch' | 'jump' | 'dance' | 'stretch' | 'cool'
 
 /** El bucle en reposo, en ticks de 100 ms: unos 17 s por vuelta. */
 const LOOP: readonly (readonly [IdleStep, number])[] = [
@@ -346,24 +373,34 @@ const LOOP: readonly (readonly [IdleStep, number])[] = [
   ['dance', 24],
   ['base', 12], ['blink', 2], ['base', 8],
   ['stretch', 12], ['base', 10], ['blink', 2], ['base', 10],
+  ['cool', 40], ['base', 10],
 ]
 
 export const LOOP_TICKS = LOOP.reduce((n, [, t]) => n + t, 0)
 
-/** El paso del bucle en un tick. */
-export const loopPose = (tick: number): IdleStep => {
+/** El paso del bucle en un tick y cuántos ticks lleva en él. */
+const loopStep = (tick: number): [IdleStep, number] => {
   let t = ((tick % LOOP_TICKS) + LOOP_TICKS) % LOOP_TICKS
   for (const [name, ticks] of LOOP) {
-    if (t < ticks) return name
+    if (t < ticks) return [name, t]
     t -= ticks
   }
-  return 'base'
+  return ['base', 0]
 }
+
+export const loopPose = (tick: number): IdleStep => loopStep(tick)[0]
 
 type Scene = { pose: Pose; particles?: Particle[]; shift?: number; mark?: string; say?: string | null; sayTone?: Tone }
 
+const coolScene = (t: number, seed: number): Scene => ({
+  pose: pose(EYES.base),
+  particles: shadesSliding(t),
+  say: t < 6 ? null : pick(PHRASES.cool, seed),
+  sayTone: 'gold',
+})
+
 const idleScene = (tick: number): Scene => {
-  const step = loopPose(tick)
+  const [step, t] = loopStep(tick)
   switch (step) {
     case 'blink': return { pose: pose(EYES.blink) }
     case 'lookLeft': return { pose: pose(EYES.left) }
@@ -372,6 +409,7 @@ const idleScene = (tick: number): Scene => {
     case 'jump': return { pose: jump(), say: '¡hop!' }
     case 'dance': return { pose: dance(tick), particles: notes(tick), mark: Math.floor(tick / 3) % 2 === 0 ? '♪' : '♫', sayTone: 'glow' }
     case 'stretch': return { pose: cheer(EYES.blink), say: 'me estiro un poco' }
+    case 'cool': return coolScene(t, Math.floor(tick / LOOP_TICKS))
     default: return { pose: pose(EYES.base) }
   }
 }
@@ -419,7 +457,9 @@ const reactionScene = (r: Reaction, t: number): Scene => {
     case 'commit':
       return { pose: t < 10 ? cheer() : pose(EYES.happy), particles: t < 10 ? confetti(t, 3) : [], mark: '✓', say: '¡commit hecho!', sayTone: 'ok' }
     case 'push':
-      return { pose: cheer(), particles: arrows(t), mark: '⇡', say: '¡pusheado!', sayTone: 'ok' }
+      return { pose: pose(EYES.base), particles: [...shadesSliding(t), ...arrows(t)], mark: '⇡', say: '¡pusheado!', sayTone: 'ok' }
+    case 'cool':
+      return coolScene(t, r.seed)
     case 'wake':
       return { pose: pose(EYES.wide), particles: [{ r: 0, c: 10, ch: '!', tone: 'gold' }], say: '¡eh! ¡volviste!' }
   }
@@ -453,7 +493,7 @@ const workScene = (tick: number, mood: Mood): Scene => {
 }
 
 const keyOf = (f: Omit<MascotFrame, 'key'>): string =>
-  `${f.rows.map(r => r.map(s => `${s.tone ?? ''}:${s.text}`).join('|')).join('/')}#${f.mark}#${f.say ?? ''}#${f.sayTone}`
+  `${f.rows.map(r => r.map(s => `${s.tone ?? ''}:${s.bg ?? ''}:${s.text}`).join('|')).join('/')}#${f.mark}#${f.say ?? ''}#${f.sayTone}`
 
 const frameOf = (scene: Scene, say: string | null): MascotFrame => {
   const f = {
