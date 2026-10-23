@@ -50,6 +50,13 @@ describe('Clawd', () => {
     expect(mascotFrame(0, WORKING).say).toBe('pensando…')
   })
 
+  test('pensando se rasca la cabeza como el meme, con un ? que titila', () => {
+    const heads = new Set(Array.from({ length: 8 }, (_, t) => mascotFrame(t, WORKING).rows[0].map(s => s.text).join('')))
+    expect([...heads].some(h => h.includes('▝')) && [...heads].some(h => h.includes('▘'))).toBe(true)
+    expect(text(mascotFrame(0, WORKING))).toContain('?')
+    expect(mascotFrame(0, { ...WORKING, activity: { kind: 'read', detail: 'a.ts' } }).say).toBe('leyendo a.ts')
+  })
+
   test('un turno largo transpira y cada tanto lo comenta', () => {
     const says = new Set(Array.from({ length: 400 }, (_, i) => mascotFrame(i, { ...WORKING, workTicks: 1_000 + i }).say))
     expect([...says].some(s => /largo|sigo|casi|paciencia/.test(s ?? ''))).toBe(true)
@@ -67,11 +74,8 @@ describe('Clawd', () => {
 
   test('fachero: los lentes entran deslizándose y se calzan sobre los ojos', () => {
     const cool = { ...CALM, reaction: { kind: 'cool', at: 0, seed: 0 } } as const
-    // Dónde empieza la banda: el primer tramo naranja o gris hecho de medios bloques de abajo.
-    const lensAt = (t: number) => {
-      const row = [...mascotFrame(t, cool).rows[0].map(s => s.text).join('')]
-      return row.findIndex((ch, i) => (ch === '▀' || ch === '▄') && (row[i + 1] === '▀' || row[i + 1] === '▄'))
-    }
+    // Dónde está el primer brillo de los lentes.
+    const lensAt = (t: number) => [...mascotFrame(t, cool).rows[0].map(s => s.text).join('')].indexOf('▞')
     expect(lensAt(0)).toBeGreaterThan(lensAt(10))
     expect(lensAt(10)).toBe(3)
     expect(lensAt(20)).toBe(3)
@@ -79,7 +83,7 @@ describe('Clawd', () => {
     expect(mascotFrame(0, cool).say).toBeNull()
     // En reposo también se los pone, y con el push.
     expect(new Set(Array.from({ length: LOOP_TICKS }, (_, t) => loopPose(t))).has('cool' as never)).toBe(true)
-    expect(text(mascotFrame(10, { ...CALM, reaction: { kind: 'push', at: 0, seed: 0 } })).split('\n')[0]).toContain('▀▀▀▀▀')
+    expect(text(mascotFrame(10, { ...CALM, reaction: { kind: 'push', at: 0, seed: 0 } })).split('\n')[0]).toContain('▞  ▞')
   })
 
   test('mientras escribís te sigue con los ojos; solo un rato después se duerme', () => {

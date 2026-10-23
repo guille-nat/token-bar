@@ -18,13 +18,14 @@ A la izquierda de los medidores (`hooks/mascot.ts`), en un lienzo de 3 filas × 
 
 - **Al abrir:** saluda según la hora ("¡Hola! ¡buen día!", "¿noche de código?").
 - **Mientras escribís:** te sigue con los ojos ("te leo…"). Al mandar el prompt salta ("¡a darle!").
+- **Pensando** (antes de la primera herramienta y entre una y otra): se rasca la cabeza como el meme, con la mano que va y viene, mirando de reojo y un `?` que titila ("pensando…", "mmm…", "a ver, a ver…").
 - **Mientras trabaja:** dice qué hace según la herramienta (`activityOf`): "leyendo register.tsx", "editando mascot.ts", "buscando «foo»", "corriendo npm", "git push…", "mirando docs.github.com", "ayudante: …". Si lee o busca mueve los ojos; si edita o corre comandos teclea; el destello de Claude orbita alrededor. Pasados 90 s transpira y cada tanto lo comenta ("esto viene largo…").
 - **Cuando termina una herramienta** (`outcomeOf`): tests que pasan → confeti y "¡tests en verde!"; tests que fallan → triste; `git commit` → "¡commit hecho!"; `git push` → se pone los lentes de "deal with it", flechas ⇡ y "¡pusheado!"; cualquier otro error → se sacude ("uy…").
 - **Al terminar el turno:** festeja con confeti ("¡listo!"); si el turno duró más de 1 minuto, se pone los lentes; si lo frenaste, "ok, freno"; si falló, triste.
 - **Clic sobre Clawd:** corazones ♥ y "¡jeje!". Muchos clics seguidos: "¡ya, ya! a trabajar".
 - **3 minutos sin nada:** se duerme (zzz que suben); lo próximo que pase lo despierta ("¡eh! ¡volviste!").
 - **En reposo:** parpadea, mira a los costados, salta, baila con ♪ ♫, se estira y cada tanto se pone los lentes.
-- **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Sin colores de fondo: sobre la cara son huecos en el naranja (como los ojos) y se ven oscuros; mientras entran, fuera de la cara, van en gris. Al calzarse brillan con un ✦.
+- **Fachero:** los lentes pixelados (negros con el brillo blanco, como el emoji de "deal with it") entran deslizándose desde la derecha y se calzan sobre los ojos: "deal with it", "todo bajo control". Sin colores de fondo: sobre la cara son huecos en el naranja (como los ojos) y se ven oscuros; ocupan toda la fila de la cabeza, como en el emoji, con un brillo blanco en diagonal (▞) en cada cristal (una celda de terminal tiene solo dos colores, así que el brillo necesita una celda entera oscura). Mientras entran, fuera de la cara, van en gris. Al calzarse destellan con un ✦.
 - **Un medidor ≥90 %:** un `!` rojo titila y dice "¡ojo! Semana al 93%". Desde 75 %: "conviene dosificar".
 
 Prioridad: reacción reciente > trabajando > alerta > te mira escribir > dormido > bucle en reposo. Con animaciones apagadas queda quieto, sin reacciones, pero sigue avisando de los límites.

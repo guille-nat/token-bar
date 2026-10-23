@@ -136,6 +136,9 @@ const waveDown = (eyes = EYES.base): Pose => pose(`${eyes.slice(0, 8)}▗`, '▝
 /** Tecleando: los brazos suben y bajan alternados. */
 const typing = (t: number, eyes = EYES.base): Pose =>
   Math.floor(t / 2) % 2 === 0 ? pose(eyes, '▗▜█████▛▘', LEGS) : pose(eyes, '▝▜█████▛▖', LEGS)
+/** Rascándose la cabeza, como el meme: la mano sobre la cabeza va y viene. */
+const scratch = (t: number): Pose =>
+  pose(`${(Math.floor(t / 12) % 2 === 0 ? EYES.left : EYES.right).slice(0, 8)}${Math.floor(t / 2) % 2 === 0 ? '▝' : '▘'}`, '▝▜█████▛ ')
 const crouch = (eyes = EYES.base): Pose => pose(eyes, '▗▟█████▙▖', '  ▀▀ ▀▀  ')
 const jump = (eyes = EYES.base): Pose => pose(eyes, BODY, BLANK)
 const dance = (t: number): Pose =>
@@ -249,17 +252,25 @@ const sweat = (t: number): Particle => ({ r: Math.floor(t / 4) % 3, c: 0, ch: '�
  * Los lentes pixelados de "deal with it". Sin colores de fondo (no todas las
  * terminales los pintan igual): sobre la cara son huecos en el naranja, como
  * los ojos, y se ven oscuros; fuera de ella, mientras entran, van en gris.
- * Una banda en la mitad de abajo de la cabeza y dos cristales que bajan a la
- * mitad de arriba del cuerpo, con el puente naranja en el medio. `at` es la
- * columna del lienzo donde empiezan; en la cara, la 3.
+ * Ocupan toda la fila de la cabeza, como en el emoji, con un brillo blanco en
+ * diagonal (▞) en cada cristal, y los cristales bajan a la mitad de arriba del
+ * cuerpo con el puente naranja en el medio. `at` es la columna del lienzo
+ * donde empiezan; en la cara, la 3.
  */
-const SHADES: readonly { r: number; dc: number; face: string; off: string }[] = [
-  ...[0, 1, 2, 3, 4].map(dc => ({ r: 0, dc, face: '▀', off: '▄' })),
-  ...[0, 1, 3, 4].map(dc => ({ r: 1, dc, face: '▄', off: '▀' })),
+type Lens = { ch: string; tone: Tone }
+const GLINT: Lens = { ch: '▞', tone: 'shine' }
+const HOLE: Lens = { ch: ' ', tone: 'clawd' }
+const SHADES: readonly { r: number; dc: number; face: Lens; off: Lens }[] = [
+  { r: 0, dc: 0, face: GLINT, off: GLINT },
+  { r: 0, dc: 1, face: HOLE, off: { ch: '█', tone: 'frame' } },
+  { r: 0, dc: 2, face: HOLE, off: { ch: '▀', tone: 'frame' } },
+  { r: 0, dc: 3, face: GLINT, off: GLINT },
+  { r: 0, dc: 4, face: HOLE, off: { ch: '█', tone: 'frame' } },
+  ...[0, 1, 3, 4].map(dc => ({ r: 1, dc, face: { ch: '▄', tone: 'clawd' as const }, off: { ch: '▀', tone: 'frame' as const } })),
 ]
 const SHADES_AT = 3
 const shades = (at = SHADES_AT): Particle[] =>
-  SHADES.map(({ r, dc, face, off }) => ({ r, c: at + dc, ch: face, tone: 'clawd' as const, off: { ch: off, tone: 'frame' as const } }))
+  SHADES.map(({ r, dc, face, off }) => ({ r, c: at + dc, ...face, off }))
     .filter(p => p.c >= 0 && p.c < MASCOT_WIDTH)
 /** Entran deslizándose desde la derecha, se calzan en la cara y brillan. */
 const shadesSliding = (t: number): Particle[] => [
@@ -292,6 +303,7 @@ const PHRASES = {
   oops: ['uy…', 'mmm, falló', 'eso no anduvo', 'probemos otra'],
   long: ['esto viene largo…', 'sigo en eso…', 'ya casi…', 'paciencia…'],
   watch: ['te leo…', 'ajá…', 'mhm…'],
+  think: ['pensando…', 'mmm…', 'a ver, a ver…'],
   cool: ['deal with it', 'todo bajo control', 'tranqui, lo tengo', 'con estilo', 'fachero, ¿no?'],
 } as const
 
@@ -479,7 +491,12 @@ const workScene = (tick: number, mood: Mood): Scene => {
   const isLong = work >= LONG_WORK
   const particles = [orbit(tick), ...(isLong ? [sweat(tick)] : [])]
   // Cada tanto, en un turno largo, comenta en vez de decir qué hace.
-  const say = isLong && Math.floor(work / 40) % 4 === 3 ? pick(PHRASES.long, Math.floor(work / 160)) : sayOf(activity)
+  const say =
+    isLong && Math.floor(work / 40) % 4 === 3
+      ? pick(PHRASES.long, Math.floor(work / 160))
+      : activity.kind === 'think'
+        ? pick(PHRASES.think, Math.floor(tick / 30))
+        : sayOf(activity)
   const scan = Math.floor(tick / 3) % 2 === 0 ? EYES.left : EYES.right
   let body: Pose
   switch (activity.kind) {
@@ -489,7 +506,9 @@ const workScene = (tick: number, mood: Mood): Scene => {
       body = pose(scan)
       break
     case 'think':
-      body = pose(Math.floor(tick / 10) % 2 === 0 ? EYES.left : EYES.right)
+      body = scratch(tick)
+      // El signo de pregunta titila arriba, antes que el destello.
+      if (Math.floor(tick / 6) % 2 === 0) particles.unshift({ r: 0, c: 10, ch: '?', tone: 'gold' })
       break
     case 'agent':
       body = Math.floor(tick / 3) % 2 === 0 ? waveUp() : waveDown()
