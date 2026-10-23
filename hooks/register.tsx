@@ -55,7 +55,18 @@ import {
   type Usage,
   USAGE_LEVELS,
 } from './format'
-import { type Fx, mascotFrame, type Mood } from './mascot'
+import {
+  type Activity,
+  activityOf,
+  MASCOT_WIDTH,
+  mascotFrame,
+  type Mood,
+  outcomeOf,
+  type Reaction,
+  type ReactionKind,
+  SLEEP_AFTER,
+  TONE_COLOR,
+} from './mascot'
 import {
   type ChangeState,
   changeLabel,
@@ -101,7 +112,7 @@ const FRAME_MS = 100
 const MASCOT_MIN_COLUMNS = 40
 /** Ancho de la columna donde Clawd dice su comentario (y debajo del modelo). */
 const SAY_WIDTH = 28
-const MASCOT_COLUMNS = 9
+const MASCOT_COLUMNS = MASCOT_WIDTH
 
 let usage: Usage | null = null
 let model: string | null = null
@@ -120,6 +131,15 @@ let home: string | null = null
 let frame = 0
 let isWorking = false
 let mascotKey = ''
+/** Lo que vive Clawd: lo último que pasó, qué corre, si escribís y desde cuándo no pasa nada. */
+let reaction: Reaction | null = null
+let reactionSeed = 0
+let activity: Activity | null = null
+let typing: { at: number; ratio: number } | null = null
+let lastActive = 0
+let workStart = 0
+/** Clics seguidos sobre Clawd: con muchos, se queja. */
+let pets = { count: 0, at: -Infinity }
 /** Lo que muestra cada barra mientras se acerca a su valor (clave: kind o "ctx"). */
 const shown = new Map<string, number>()
 const columns: { status: number | null; band: number | null; pane: number | null; command: number | null } = {
@@ -272,7 +292,17 @@ const mood = (): Mood => {
     .map(l => ({ label: labelFor(l.kind), pct: l.percentUsed }))
   if (settings.show.context && usage?.context.percent !== undefined) limits.push({ label: 'el contexto', pct: usage.context.percent })
   const top = limits.reduce<{ label: string; pct: number } | null>((a, b) => (a === null || b.pct > a.pct ? b : a), null)
-  return { isWorking, alert: top !== null && top.pct >= alertAt() ? top : null, maxPct: top?.pct ?? 0, isStill: !settings.animations }
+  return {
+    isWorking,
+    alert: top !== null && top.pct >= alertAt() ? top : null,
+    maxPct: top?.pct ?? 0,
+    isStill: !settings.animations,
+    activity,
+    reaction,
+    typing,
+    idleTicks: frame - lastActive,
+    workTicks: frame - workStart,
+  }
 }
 
 /** Colores de los datos de la banda, para que no se lean como un solo bloque gris. */
@@ -281,12 +311,23 @@ const TOKENS_OUT_COLOR = '#9ECE6A'
 const COST_COLOR = '#E0AF68'
 const CWD_COLOR = '#BB9AF7'
 
-const FX_COLOR: Record<Fx, string | undefined> = {
-  none: undefined,
-  notes: CLAUDE_GLOW,
-  sleep: 'subtle',
-  spark: CLAUDE_ORANGE,
-  alert: 'error',
+/** Algo pasó: si estaba dormido se despierta, y no se duerme hasta un rato después. */
+const touch = () => {
+  if (settings.animations && !isWorking && frame - lastActive >= SLEEP_AFTER) react('wake')
+  lastActive = frame
+}
+
+/** Clawd reacciona: dura unos ticks y el reloj lo redibuja. */
+const react = (kind: ReactionKind, extra: Partial<Reaction> = {}) => {
+  if (!settings.animations || !settings.mascotOn) return
+  reaction = { kind, at: frame, seed: reactionSeed++, ...extra }
+}
+
+/** Un clic sobre Clawd: se pone contento; muchos seguidos, se queja. */
+const pet = () => {
+  pets = frame - pets.at < 100 ? { count: pets.count + 1, at: frame } : { count: 0, at: frame }
+  touch()
+  react('pet', { seed: pets.count })
 }
 
 const saveCounters = async ($: EngineInterface) =>
@@ -460,6 +501,8 @@ export const register: Register = (on, options) => {
     await refresh($)
     // git y gh pueden tardar: el inicio de la sesión no los espera.
     void refreshRepo($)
+    lastActive = frame
+    react('greet', { hour: new Date(await $.clock.now()).getHours() })
     $.clock.every(FRAME_MS, () => tick($))
     $.clock.every(REFRESH_MS, () => {
       void refresh($)
@@ -484,7 +527,59 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      touch()
+      workStart = frame
+      activity = { kind: 'think', detail: '' }
+    }
+
+    return next(e)
+  })
+
+  // Clawd mira qué herramienta corre y festeja o lamenta cómo salió. Nunca
+  // toca la llamada: si algo de esto fallara, la herramienta corre igual.
+  on('tool.call', async ($, e, next) => {
+    const input = e as unknown as Record<string, unknown>
+    try {
+      activity = activityOf(e.tool, input)
+    } catch {}
+    const ran = await next(e)
+    try {
+      if (ran.deny === undefined) {
+        const outcome = outcomeOf(e.tool, input, ran.isError === true)
+        if (outcome !== null) react(outcome)
+      }
+      if (isWorking) activity = { kind: 'think', detail: '' }
+    } catch {}
+
+    return ran
+  })
+
+  on('prompt.edit', async ($, e, next) => {
+    touch()
+    // Los ojos siguen lo que escribís, de izquierda a derecha.
+    typing = { at: frame, ratio: ((e.start + e.inputText.length) % 40) / 40 }
+
+    return next(e)
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    touch()
+    typing = null
+    if (e.text.trim() !== '') react('submit')
+
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      activity = null
+      lastActive = frame
+      // Si no se dijo nada más fuerte (un test, un push) en el último segundo, reacciona al final.
+      const isFresh = reaction !== null && frame - reaction.at < 10 && reaction.kind !== 'submit'
+      if (!isFresh) react(e.reason === 'answer' ? 'done' : e.reason === 'aborted' ? 'abort' : 'fail')
+    }
     lastTurnRaw = numericFields(e)
     if (e.usage !== undefined) {
       const turn = tokensOf(e.usage)
@@ -567,7 +662,7 @@ export const register: Register = (on, options) => {
     const showMascot = settings.mascotOn && e.props.bodyColumns >= MASCOT_MIN_COLUMNS
     // A la izquierda Clawd y su comentario (ancho fijo); luego una raya; el resto
     // es de los datos, que se miden con lo que sobra.
-    const roomFor = (withMascot: boolean) => e.props.bodyColumns - (withMascot ? MASCOT_COLUMNS + 2 + SAY_WIDTH + 3 : 0)
+    const roomFor = (withMascot: boolean) => e.props.bodyColumns - (withMascot ? MASCOT_COLUMNS + 1 + SAY_WIDTH + 3 : 0)
     const show = settings.show
     // Cada límite responde al interruptor de su familia (Sesión, Semana, Fable).
     const limits = sortLimits(usage?.rateLimits ?? []).filter(l => show[limitKey(labelFor(l.kind))])
@@ -738,14 +833,19 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row">
+          {/* Clawd entero es un botón: un clic lo acaricia. */}
           <Box key="clawd" flexDirection="column" flexShrink={0}>
             {clawd.rows.map((row, i) => (
-              <Text key={`clawd-${i}`} color={CLAUDE_ORANGE}>{row}</Text>
+              <Button key={`clawd-${i}`} plain onPress={pet}>
+                {row.map((seg, j) => (
+                  <Text key={`clawd-${i}-${j}`} color={seg.tone === null ? undefined : TONE_COLOR[seg.tone]}>{seg.text}</Text>
+                ))}
+              </Button>
             ))}
           </Box>
-          <Box key="clawd-text" flexDirection="column" flexShrink={0} width={SAY_WIDTH} marginLeft={2}>
+          <Box key="clawd-text" flexDirection="column" flexShrink={0} width={SAY_WIDTH} marginLeft={1}>
             {show.model ? brandOf(formatModel(model)) : <Text key="brand-off"> </Text>}
-            <Text key="clawd-say" color={FX_COLOR[clawd.fx] ?? CLAUDE_GLOW} italic wrap="truncate-end">{settings.clawdSay ? say : ' '}</Text>
+            <Text key="clawd-say" color={TONE_COLOR[clawd.sayTone]} italic wrap="truncate-end">{settings.clawdSay ? say : ' '}</Text>
           </Box>
           {!stacked && (
             <Box key="band-rule" flexDirection="column" flexShrink={0}>

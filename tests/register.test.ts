@@ -505,11 +505,41 @@ test('el modelo va en la barra y en el panel; la leyenda explica colores y símb
   }
 })
 
-test('con un límite ≥90 % Clawd avisa cuál', async ($, on) => {
-  stubEngine(on, WITH_FABLE)
+test('con un límite ≥90 % Clawd avisa cuál, después de saludar', async ($, on) => {
+  const { clock } = stubEngine(on, WITH_FABLE)
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await clock.advance(5_000)
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await band.find({ type: 'Text', text: /¡ojo! Fable semanal al 92%/ })).toBeDefined()
+})
+
+test('Clawd compañero: festeja los tests, lamenta un error y se pone contento con un clic', async ($, on) => {
+  const { clock } = stubEngine(on, WITHOUT_LIMITS)
+  on('tool.call', ($, e) => (e.tool === 'Read' ? { result: {}, isError: true } : { result: {} }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await clock.advance(5_000)
+
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+  const green = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await green.find({ type: 'Text', text: /tests en verde/ })).toBeDefined()
+  await green.unmount()
+
+  await clock.advance(4_000)
+  await $.tool.call({ tool: 'Read', file_path: '/no/existe.ts' })
+  const oops = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await oops.find({ type: 'Text', text: /uy|falló|no anduvo|otra/ })).toBeDefined()
+
+  await clock.advance(4_000)
+  await oops.press({ key: 'clawd-1' })
+  await oops.unmount()
+  const petted = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await petted.find({ type: 'Text', text: /♥/ })).toBeDefined()
+  await petted.unmount()
+
+  // Tres minutos sin nada y se duerme.
+  await clock.advance(200_000)
+  const asleep = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await asleep.find({ type: 'Text', text: /z.z…/i })).toBeDefined()
 })
 
 const CONFIG_FILE = '/home/yo/.config/token-bar/config.json'
